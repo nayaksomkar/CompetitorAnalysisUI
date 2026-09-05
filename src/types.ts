@@ -182,7 +182,8 @@ export type ChatAsset =
   | { kind: 'market-gap'; data: MarketGap; explanation?: Explanation }
   | { kind: 'insight'; data: InsightItem; explanation?: Explanation }
   | { kind: 'report'; data: Report; explanation?: Explanation }
-  | { kind: 'action-plan'; data: { title: string; items: ActionPlanItem[] }; explanation?: Explanation };
+  | { kind: 'action-plan'; data: { title: string; items: ActionPlanItem[] }; explanation?: Explanation }
+  | { kind: 'dashboard'; data: AnalysisData; focusText?: string };
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 

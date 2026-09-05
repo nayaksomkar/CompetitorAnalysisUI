@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Card, Badge } from '../components/primitives';
+import { Badge } from '../components/primitives';
 import { Icon } from '../components/icons';
 import { CompetitorCard } from '../components/CompetitorCard';
 import { ComparisonTable } from '../components/ComparisonTable';
 import { PricingTable } from '../components/PricingTable';
 import { ProductBreakdown } from '../components/ProductBreakdown';
 import { Chart } from '../components/Chart';
-import { ExplainButton } from '../components/Explain';
 import { InsightCard, MarketGapCard, ReportCard, ActionPlanList, SourcesList } from '../components/AssetCards';
+import { OverviewDashboard } from '../components/OverviewDashboard';
 import type { AnalysisData, Competitor, TabKey } from '../types';
 
 export function TabContent({ tab, data }: { tab: TabKey; data: AnalysisData }) {
@@ -49,79 +49,9 @@ function Overview({ data }: { data: AnalysisData }) {
           </div>
         }
       />
-
-      <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
-        {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          <Stat label="Competitors" value={String(data.competitors.length)} />
-          <Stat label="Market gaps" value={String(data.marketGaps.length)} />
-          <Stat label="Insights" value={String(data.insights.length)} />
-          <Stat label="Sources" value={String(data.sources.length)} />
-          <Stat label="Reports" value={String(data.reports.length)} />
-          <Stat label="Goals" value={String(data.profile.researchGoals?.length ?? 0)} />
-        </div>
-
-        {/* Pie charts row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          <Chart data={data.charts.marketSharePie} />
-          <Chart data={data.charts.growthPie} />
-          <Chart data={data.charts.pricingPie} />
-        </div>
-
-        {/* Insights sidebar */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <InsightCard item={data.insights[0]} compact />
-          <InsightCard item={data.insights[1]} compact />
-        </div>
-
-        {/* Competitors table */}
-        <Card>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-ink-900 dark:text-ink-100 text-sm">Top competitors at a glance</h3>
-            <ExplainButton explanation={{ summary: 'A quick orientation across the competitors that matter most for your ICP.', whyItMatters: ['Use as the at-a-glance summary to share with new stakeholders.'], evidence: [{ label: 'Method', detail: 'Selection based on market share, growth and competitive fit.' }], sources: data.sources.slice(0, 3) }} />
-          </div>
-          <ComparisonTable
-            data={{
-              title: 'Competitors — at-a-glance',
-              columns: ['Vendor', 'Share', 'Growth', 'Pricing tier', 'Position', 'Biggest weakness'],
-              rows: data.competitors.map((c) => ({
-                name: c.name,
-                cells: [`${c.marketShare}%`, `${c.growthRate}%`, c.pricingTier ?? '—', c.marketPosition ?? '—', c.weaknesses?.[0] ?? '—'],
-              })),
-            }}
-          />
-        </Card>
-
-        {/* Market gaps */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <MarketGapCard gap={data.marketGaps[0]} />
-          <MarketGapCard gap={data.marketGaps[1]} />
-        </div>
-
-        {/* Action plan */}
-        <ActionPlanList
-          title={`${data.profile.businessName} — 90-day action plan`}
-          items={data.actionPlan}
-          explanation={{
-            summary: 'The three P0s ship in the next 60 days; P1s in the following quarter.',
-            whyItMatters: [
-              'Sequencing matters; the first move unlocks the others.',
-              'Keep long-horizon items on a monthly review cadence.',
-            ],
-            evidence: [{ label: 'Source', detail: 'Internal synthesis of all evidence.' }],
-            sources: data.sources.slice(0, 4),
-          }}
-        />
+      <div className="p-3 sm:p-4">
+        <OverviewDashboard data={data} />
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-ink-100 dark:border-ink-700 p-3 bg-white dark:bg-ink-800">
-      <p className="text-xs font-medium text-ink-500 dark:text-ink-400 truncate">{label}</p>
-      <p className="text-xl font-semibold text-ink-900 dark:text-ink-100 mt-0.5">{value}</p>
     </div>
   );
 }

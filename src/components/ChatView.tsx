@@ -8,6 +8,8 @@ import { PricingTable } from './PricingTable';
 import { ProductBreakdown } from './ProductBreakdown';
 import { Chart } from './Chart';
 import { InsightCard, MarketGapCard, ReportCard, ActionPlanList } from './AssetCards';
+import { OverviewDashboard } from './OverviewDashboard';
+import { ContextMenu, type ContextMenuOption } from './ContextMenu';
 import type { ChatMessage, ChatAsset, AnalysisData } from '../types';
 
 interface ChatProps {
@@ -16,6 +18,7 @@ interface ChatProps {
   onSend: (text: string) => void;
   thinking?: boolean;
   onSwitchSample?: () => void;
+  onCreateOverview?: (focusText?: string) => void;
 }
 
 const suggestions = [
@@ -27,13 +30,51 @@ const suggestions = [
   'Show me a chart of market share',
 ];
 
-export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: ChatProps) {
+export function ChatView({ data, messages, onSend, thinking, onSwitchSample, onCreateOverview }: ChatProps) {
   const [input, setInput] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, thinking]);
+
+  const startLongPress = (e: React.MouseEvent | React.TouchEvent, text: string) => {
+    longPressFired.current = false;
+    const point = 'touches' in e ? e.touches[0] : e;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      setContextMenu({ x: point.clientX, y: point.clientY, text });
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
+  const handlePointerUp = () => {
+    cancelLongPress();
+    // Small delay so the click handler can check longPressFired
+    setTimeout(() => { longPressFired.current = false; }, 10);
+  };
+
+  const menuOptions: ContextMenuOption[] | null = contextMenu && onCreateOverview ? [
+    {
+      id: 'this-overview',
+      label: 'Create this chat overview',
+      icon: <Icon.Target />,
+      onClick: () => onCreateOverview(contextMenu.text),
+    },
+    {
+      id: 'chat-overview',
+      label: 'Chat overview',
+      icon: <Icon.Compass />,
+      onClick: () => onCreateOverview(),
+    },
+  ] : null;
 
   const submit = (text: string) => {
     if (!text.trim()) return;
@@ -58,12 +99,23 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: C
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6"
+        onMouseUp={handlePointerUp}
+        onTouchEnd={handlePointerUp}
+        onMouseLeave={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onScroll={cancelLongPress}
+      >
         {messages.map((m) => (
-          <Message key={m.id} message={m} data={data} />
+          <Message key={m.id} message={m} data={data} onLongPress={startLongPress} />
         ))}
         {thinking && <ThinkingDots />}
       </div>
+      {contextMenu && menuOptions && (
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} options={menuOptions} onClose={() => setContextMenu(null)} />
+      )}
 
       <div className="border-t border-ink-100 dark:border-ink-700 px-4 sm:px-6 py-3 sm:py-4 bg-white dark:bg-ink-800 shrink-0">
         <div className="flex flex-wrap gap-2 mb-3">
@@ -102,7 +154,7 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: C
   );
 }
 
-function Message({ message, data }: { message: ChatMessage; data: AnalysisData }) {
+function Message({ message, data, onLongPress }: { message: ChatMessage; data: AnalysisData; onLongPress: (e: React.MouseEvent | React.TouchEvent, text: string) => void }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -116,7 +168,11 @@ function Message({ message, data }: { message: ChatMessage; data: AnalysisData }
     <div className="flex justify-start">
       <div className="max-w-3xl w-full space-y-3">
         {message.text && (
-          <div className="chat-bubble-assistant">
+          <div
+            className="chat-bubble-assistant touch-none"
+            onMouseDown={(e) => onLongPress(e, message.text ?? '')}
+            onTouchStart={(e) => onLongPress(e, message.text ?? '')}
+          >
             <div className="flex items-start gap-2">
               <Icon.Sparkles className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div className="prose-chat text-sm text-ink-900 leading-relaxed">
@@ -153,6 +209,7 @@ function AssetRender({ asset, data }: { asset: ChatAsset; data: AnalysisData }) 
     case 'insight': return <InsightCard item={asset.data} />;
     case 'report': return <ReportCard report={asset.data} />;
     case 'action-plan': return <ActionPlanList title={asset.data.title} items={asset.data.items} explanation={asset.explanation} />;
+    case 'dashboard': return <OverviewDashboard data={asset.data} focusText={asset.focusText} />;
     default: {
       const _exhaustive: never = asset;
       void _exhaustive;

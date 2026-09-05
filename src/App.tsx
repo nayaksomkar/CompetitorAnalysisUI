@@ -137,6 +137,25 @@ export default function App() {
               onSend={handleSend}
               thinking={thinking}
               onSwitchSample={reset}
+              onCreateOverview={(focusText) => {
+                const t = Date.now();
+                const userMsg: ChatMessage = {
+                  id: `u-ov-${t}`,
+                  role: 'user',
+                  text: focusText ? `Overview: ${focusText}` : 'Chat overview',
+                  createdAt: t,
+                };
+                const dashMsg: ChatMessage = {
+                  id: `a-ov-${t}`,
+                  role: 'assistant',
+                  createdAt: t + 1,
+                  text: focusText
+                    ? `Here's a focused overview on "${focusText}". Scroll through — and ask me anything.`
+                    : `Here's the full competitive overview for ${data.profile.businessName}. Scroll through the sections below — and ask me anything about it.`,
+                  assets: [{ kind: 'dashboard', data, focusText }],
+                };
+                setMessages((m) => [...m, userMsg, dashMsg]);
+              }}
             />
           ) : (
             <TabContent tab={tab} data={data} />
