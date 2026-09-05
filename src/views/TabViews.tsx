@@ -37,14 +37,6 @@ function PageHeader({ title, subtitle, action }: { title: string; subtitle?: str
 }
 
 function Overview({ data }: { data: AnalysisData }) {
-  const [activeChart, setActiveChart] = useState<'marketShare' | 'growth' | 'pricing' | 'featureAdoption'>('marketShare');
-  const chartMap = {
-    marketShare: data.charts.marketShare,
-    growth: data.charts.growth,
-    pricing: data.charts.pricing,
-    featureAdoption: data.charts.featureAdoption,
-  };
-
   return (
     <div className="overflow-y-auto scrollbar-thin h-full min-h-0">
       <PageHeader
@@ -69,29 +61,17 @@ function Overview({ data }: { data: AnalysisData }) {
           <Stat label="Goals" value={String(data.profile.researchGoals?.length ?? 0)} />
         </div>
 
-        {/* Charts section - compact layout */}
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
-          {/* Main chart area */}
-          <div className="xl:col-span-3">
-            <div className="inline-flex flex-wrap rounded-lg border border-ink-200 dark:border-ink-600 p-0.5 text-xs mb-2 bg-white dark:bg-ink-800">
-              {(Object.keys(chartMap) as Array<keyof typeof chartMap>).map((k) => (
-                <button
-                  key={k}
-                  onClick={() => setActiveChart(k)}
-                  className={`px-2 py-1 rounded-md transition-colors ${activeChart === k ? 'bg-ink-900 dark:bg-ink-100 text-white dark:text-ink-900' : 'text-ink-700 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-700'}`}
-                >
-                  {chartMap[k].title.split('—')[0].trim()}
-                </button>
-              ))}
-            </div>
-            <Chart data={chartMap[activeChart]} />
-          </div>
-          
-          {/* Side panel - pie chart + insights */}
-          <div className="space-y-3">
-            <Chart data={data.charts.marketSharePie} />
-            <InsightCard item={data.insights[0]} compact />
-          </div>
+        {/* Pie charts row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <Chart data={data.charts.marketSharePie} />
+          <Chart data={data.charts.growthPie} />
+          <Chart data={data.charts.pricingPie} />
+        </div>
+
+        {/* Insights sidebar */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <InsightCard item={data.insights[0]} compact />
+          <InsightCard item={data.insights[1]} compact />
         </div>
 
         {/* Competitors table */}
@@ -237,7 +217,7 @@ function PricingView({ data }: { data: AnalysisData }) {
       />
       <div className="p-4 sm:p-6 space-y-4">
         <PricingTable title={competitorId === 'all' ? 'All pricing tiers' : `${data.competitors.find((c) => c.id === competitorId)?.name} — pricing tiers`} tiers={filtered} />
-        <Chart data={data.charts.pricing} />
+        <Chart data={data.charts.pricingPie} />
       </div>
     </div>
   );

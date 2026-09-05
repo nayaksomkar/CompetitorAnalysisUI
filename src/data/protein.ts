@@ -619,6 +619,47 @@ export const proteinAnalysis: AnalysisData = {
       }],
       explanation: charts.marketShare.explanation,
     },
+    growthPie: {
+      title: 'Growth distribution by brand',
+      kind: 'pie' as const,
+      series: charts.growth.series.map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        points: [{ label: s.name, value: s.points[s.points.length - 1].value }],
+      })),
+      explanation: charts.growth.explanation,
+    },
+    pricingPie: {
+      title: 'Price distribution',
+      kind: 'pie' as const,
+      series: [{
+        id: 's-price',
+        name: 'Price',
+        color: '#0ea5e9',
+        points: charts.pricing.series[0].points.map((p: { label: string; value: number }, i: number) => ({
+          label: p.label,
+          value: p.value,
+          color: ['#0ea5e9', '#059669', '#6b7280', '#f43f5e'][i] ?? '#64748b',
+        })),
+      }],
+      explanation: charts.pricing.explanation,
+    },
+    featureAdoptionPie: {
+      title: 'Feature adoption breakdown',
+      kind: 'pie' as const,
+      series: [{
+        id: 's-feat',
+        name: 'Adoption',
+        color: '#8b5cf6',
+        points: charts.featureAdoption.series[0].points.map((p: { label: string; value: number }, i: number) => ({
+          label: p.label,
+          value: charts.featureAdoption.series.reduce((sum: number, s) => sum + (s.points[i]?.value ?? 0), 0),
+          color: ['#0ea5e9', '#059669', '#f59e0b', '#f43f5e'][i] ?? '#64748b',
+        })),
+      }],
+      explanation: charts.featureAdoption.explanation,
+    },
   },
   swot: {
     strengths: ['Growing Indian protein market', 'Plant-first trend acceleration'],

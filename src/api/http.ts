@@ -321,8 +321,11 @@ function wireToAnalysis(wire: AnalyzeResponse, profile?: BusinessProfile, sample
     marketShare: chartsList[0] ?? base.charts.marketShare,
     marketSharePie: base.charts.marketSharePie,
     growth: chartsList[1] ?? base.charts.growth,
+    growthPie: base.charts.growthPie,
     pricing: chartsList[2] ?? base.charts.pricing,
+    pricingPie: base.charts.pricingPie,
     featureAdoption: chartsList[3] ?? base.charts.featureAdoption,
+    featureAdoptionPie: base.charts.featureAdoptionPie,
   };
   const swot = wire.swot
     ? {

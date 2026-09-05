@@ -725,8 +725,53 @@ export const perfumeAnalysis = {
       explanation: convertExplanation(perfumeCharts.market_share.explanation),
     },
     growth: convertChart(perfumeCharts.growth),
+    growthPie: {
+      title: 'Growth distribution by brand',
+      kind: 'pie' as const,
+      series: [{
+        id: 's-growth',
+        name: 'Growth',
+        color: '#059669',
+        points: perfumeCharts.growth.datasets.map((d, i) => ({
+          label: d.name ?? `Series ${i + 1}`,
+          value: d.values[d.values.length - 1],
+          color: d.color ?? '#059669',
+        })),
+      }],
+      explanation: convertExplanation(perfumeCharts.growth.explanation),
+    },
     pricing: convertChart(perfumeCharts.pricing),
+    pricingPie: {
+      title: 'Price distribution',
+      kind: 'pie' as const,
+      series: [{
+        id: 's-price',
+        name: 'Price',
+        color: '#0ea5e9',
+        points: perfumeCharts.pricing.labels.map((l, i) => ({
+          label: l,
+          value: perfumeCharts.pricing.datasets[0].values[i],
+          color: ['#0ea5e9', '#059669', '#6b7280', '#f43f5e'][i] ?? '#64748b',
+        })),
+      }],
+      explanation: convertExplanation(perfumeCharts.pricing.explanation),
+    },
     featureAdoption: convertChart(perfumeCharts.feature_adoption),
+    featureAdoptionPie: {
+      title: 'Feature adoption breakdown',
+      kind: 'pie' as const,
+      series: [{
+        id: 's-feat',
+        name: 'Adoption',
+        color: '#8b5cf6',
+        points: perfumeCharts.feature_adoption.labels.map((l, i) => ({
+          label: l,
+          value: perfumeCharts.feature_adoption.datasets.reduce((sum, d) => sum + (d.values[i] ?? 0), 0),
+          color: ['#0ea5e9', '#059669', '#f59e0b', '#f43f5e'][i] ?? '#64748b',
+        })),
+      }],
+      explanation: convertExplanation(perfumeCharts.feature_adoption.explanation),
+    },
   },
   swot: {
     strengths: ['Growing Indian premium fragrance market', 'DTC-first brands gaining share'],

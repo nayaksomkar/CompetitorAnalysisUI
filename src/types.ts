@@ -225,8 +225,11 @@ export interface AnalysisData {
     marketShare: ChartData;
     marketSharePie: ChartData;
     growth: ChartData;
+    growthPie: ChartData;
     pricing: ChartData;
+    pricingPie: ChartData;
     featureAdoption: ChartData;
+    featureAdoptionPie: ChartData;
   };
   swot?: { strengths: string[]; weaknesses: string[]; opportunities: string[]; threats: string[] };
   sources: Source[];
