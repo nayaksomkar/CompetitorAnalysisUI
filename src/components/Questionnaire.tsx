@@ -89,10 +89,20 @@ export function Questionnaire({ onSubmit }: QuestionnaireProps) {
               <button
                 key={s.id}
                 onClick={() => switchSample(s.id)}
-                className={`text-left rounded-xl border p-3 transition ${sampleId === s.id ? 'border-ink-900 dark:border-ink-100 ring-1 ring-ink-900 dark:ring-ink-100 bg-ink-50/40 dark:bg-ink-700/50' : 'border-ink-200 dark:border-ink-600 hover:border-ink-300 dark:hover:border-ink-500 bg-white dark:bg-ink-800'}`}
+                className={`text-left rounded-xl border p-3 transition relative ${sampleId === s.id ? 'border-ink-900 dark:border-ink-100 ring-1 ring-ink-900 dark:ring-ink-100 bg-ink-50/40 dark:bg-ink-700/50' : 'border-ink-200 dark:border-ink-600 hover:border-ink-300 dark:hover:border-ink-500 bg-white dark:bg-ink-800'}`}
               >
-                <p className="text-sm font-medium text-ink-900 dark:text-ink-100">{s.label}</p>
-                <p className="text-xs text-ink-500 dark:text-ink-400 mt-0.5">{s.profile.industry}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-900 dark:text-ink-100">{s.label}</p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400 mt-0.5">{s.profile.industry}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded px-1.5 py-0.5">
+                    Sample
+                  </span>
+                </div>
+                <p className="text-[10px] text-rose-500 dark:text-rose-400 mt-1.5">
+                  Contains predefined data
+                </p>
               </button>
             ))}
           </div>

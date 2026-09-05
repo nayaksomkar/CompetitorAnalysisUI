@@ -8,3 +8,9 @@
 - Includes a legend with color swatches and labels under each chart (not just inline labels). Confidence: 0.6
 - Avoid aggressive CSS overrides (`!important` rules) for theme handling — they often cause the opposite theme to leak through and break light mode. Prefer using `dark:` Tailwind variants over global media-query overrides. Confidence: 0.8
 - Uses very casual, blunt language with profanity when frustrated or giving feedback (e.g., "fucked up", "how can you fuck all of them"). Don't be alarmed — match the directness and just fix the issue. Confidence: 0.7
+- Often bundles multiple unrelated bug reports into a single run-on message (e.g., "fix X and the Y and Z too okay"). Parse out each issue and address all of them in one pass. Confidence: 0.8
+- Prefers no entry/load animations on chart components — scale-based transitions (e.g., `scale(0) → scale(1)`) cause visible "jumping" and layout shift. Use opacity-only transitions for interactions instead. Confidence: 0.8
+- Chart tooltips should appear in a fixed, anchored position (e.g., top-left corner of the chart) rather than following the cursor — cursor-following tooltips cause perceived movement/jumping when hovering across slices. Confidence: 0.7
+- Pie chart data values must be semantically sensible as proportions — don't mix absolute metrics (e.g., prices in ₹) or percentages that exceed 100 (e.g., 140% growth) into the same pie without explicit framing. Either use all relative weights with a clear title, or split into separate pies per metric. Confidence: 0.8
+- Both dark AND light themes must work correctly — when fixing theme issues, verify both modes, not just dark mode. User expects symmetric theming support. Confidence: 0.7
+- Prefers cleaning up unused CSS / dead code paths when they're identified as the cause of a bug, rather than layering workarounds on top. Confidence: 0.6

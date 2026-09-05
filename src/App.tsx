@@ -4,6 +4,7 @@ import { ChatView } from './components/ChatView';
 import { TabContent } from './views/TabViews';
 import { tabs } from './components/tabs';
 import { Icon } from './components/icons';
+import { ServerStatus } from './components/ServerStatus';
 import type { AnalysisData, BusinessProfile, ChatMessage, TabKey } from './types';
 import { api } from './api/client';
 import type { SampleId } from './data';
@@ -215,7 +216,8 @@ function Sidebar({
         ))}
       </nav>
 
-      <div className="p-3 border-t border-ink-100 dark:border-ink-700">
+      <div className="p-3 border-t border-ink-100 dark:border-ink-700 space-y-2">
+        <ServerStatus />
         <div className="rounded-xl bg-white dark:bg-ink-700 border border-ink-100 dark:border-ink-600 p-3">
           <p className="text-xs text-ink-500 dark:text-ink-400">Sample analysis</p>
           <p className="text-sm font-medium text-ink-900 dark:text-ink-100 mt-0.5">{meta?.label}</p>
