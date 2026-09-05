@@ -1,19 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card } from './primitives';
 import type { ChartData } from '../types';
 import { Icon } from './icons';
 
-const W = 400;
-const H = 320;
+const W = 360;
+const H = 280;
 
 export function Chart({ data }: { data: ChartData }) {
-  const [hover, setHover] = useState<{ seriesId: string; pointIndex: number; x: number; y: number } | null>(null);
-  const [animated, setAnimated] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimated(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
+  const [hover, setHover] = useState<number | null>(null);
 
   const pieSlices = useMemo(() => {
     if (data.kind !== 'pie' || data.series.length === 0) return [];
@@ -22,7 +16,7 @@ export function Chart({ data }: { data: ChartData }) {
     if (total === 0) return [];
     const cx = W / 2;
     const cy = H / 2;
-    const radius = Math.min(W, H) / 2 - 30;
+    const radius = Math.min(W, H) / 2 - 20;
     let startAngle = -Math.PI / 2;
     return series.points.map((point, idx) => {
       const sliceAngle = (point.value / total) * 2 * Math.PI;
@@ -34,7 +28,7 @@ export function Chart({ data }: { data: ChartData }) {
       const largeArc = sliceAngle > Math.PI ? 1 : 0;
       const path = `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
       const midAngle = startAngle + sliceAngle / 2;
-      const labelRadius = radius * 0.65;
+      const labelRadius = radius * 0.7;
       const labelX = cx + labelRadius * Math.cos(midAngle);
       const labelY = cy + labelRadius * Math.sin(midAngle);
       const pct = Math.round((point.value / total) * 100);
@@ -52,72 +46,88 @@ export function Chart({ data }: { data: ChartData }) {
     });
   }, [data]);
 
+  const total = pieSlices.reduce((sum, s) => sum + s.value, 0);
+
   return (
     <Card padded={false} className="overflow-hidden">
-      <div className="flex items-center justify-between gap-3 p-4 border-b border-ink-100 dark:border-ink-700 flex-wrap">
-        <h3 className="font-semibold text-ink-900 dark:text-ink-100">{data.title}</h3>
+      <div className="px-4 py-3 border-b border-ink-100 dark:border-ink-700">
+        <h3 className="font-semibold text-sm text-ink-900 dark:text-ink-100">{data.title}</h3>
       </div>
 
       <div className="p-4">
-        <div className="relative">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={data.title}>
-            {/* PIE CHART */}
-            {data.kind === 'pie' && (
-              <>
+        {data.kind === 'pie' && pieSlices.length > 0 ? (
+          <>
+            <div className="relative">
+              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-label={data.title}>
                 {pieSlices.map((slice) => (
-                  <g key={slice.idx} className={animated ? 'animate-pie-in' : 'opacity-0'} style={{ animationDelay: `${slice.idx * 80}ms` }}>
+                  <g key={slice.idx}>
                     <path
                       d={slice.path}
                       fill={slice.color}
                       stroke="white"
                       strokeWidth={2}
-                      className="cursor-pointer dark:stroke-ink-800"
-                      onMouseEnter={() => setHover({ seriesId: 's', pointIndex: slice.idx, x: slice.labelX, y: slice.labelY })}
+                      className="cursor-pointer transition-opacity duration-150"
+                      style={{ opacity: hover === null || hover === slice.idx ? 1 : 0.5 }}
+                      onMouseEnter={() => setHover(slice.idx)}
                       onMouseLeave={() => setHover(null)}
                     />
-                    {slice.pct >= 5 && (
-                      <text x={slice.labelX} y={slice.labelY} textAnchor="middle" dominantBaseline="middle" fontSize="11" fill="white" fontWeight="600">
+                    {slice.pct >= 6 && (
+                      <text
+                        x={slice.labelX}
+                        y={slice.labelY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize="11"
+                        fill="white"
+                        fontWeight="600"
+                        style={{ pointerEvents: 'none' }}
+                      >
                         {slice.pct}%
                       </text>
                     )}
                   </g>
                 ))}
-              </>
-            )}
-          </svg>
+              </svg>
 
-          {hover && data.kind === 'pie' && (
-            <div
-              className="absolute pointer-events-none -translate-x-1/2 -translate-y-full -mt-2 bg-ink-900 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap"
-              style={{ left: `${(hover.x / W) * 100}%`, top: `${(hover.y / H) * 100}%` }}
-            >
-              <p className="font-semibold">{pieSlices[hover.pointIndex]?.label}</p>
-              <p className="opacity-80">
-                {pieSlices[hover.pointIndex]?.value} ({pieSlices[hover.pointIndex]?.pct}%)
-              </p>
+              {hover !== null && pieSlices[hover] && (
+                <div className="absolute top-1 left-1 right-1 text-center pointer-events-none">
+                  <div className="inline-block bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg px-3 py-1.5 shadow-sm">
+                    <p className="text-xs font-semibold text-ink-900 dark:text-ink-100">{pieSlices[hover].label}</p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                      {pieSlices[hover].value} ({pieSlices[hover].pct}%)
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Legend */}
-        {data.kind === 'pie' && data.series[0] && (
-          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 px-2">
-            {data.series[0].points.map((p, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs text-ink-700 dark:text-ink-300">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: p.color ?? data.series[0].color }} />
-                <span>{p.label}</span>
-              </div>
-            ))}
+            {/* Legend */}
+            <div className="mt-3 pt-3 border-t border-ink-100 dark:border-ink-700 space-y-1.5">
+              {pieSlices.map((slice) => (
+                <div
+                  key={slice.idx}
+                  className={`flex items-center gap-2 text-xs cursor-pointer transition-opacity ${
+                    hover === null || hover === slice.idx ? 'opacity-100' : 'opacity-50'
+                  }`}
+                  onMouseEnter={() => setHover(slice.idx)}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: slice.color }} />
+                  <span className="flex-1 text-ink-700 dark:text-ink-300 truncate">{slice.label}</span>
+                  <span className="font-medium text-ink-900 dark:text-ink-100 tabular-nums">
+                    {Math.round((slice.value / total) * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-40 text-sm text-ink-500 dark:text-ink-400">
+            <Icon.EyeOff className="w-4 h-4 mr-2" />
+            No data available
           </div>
         )}
       </div>
-
-      {data.kind !== 'pie' && (
-        <div className="px-4 pb-4 text-sm text-ink-500 dark:text-ink-400 flex items-center gap-2">
-          <Icon.EyeOff />
-          Chart type not supported.
-        </div>
-      )}
     </Card>
   );
 }

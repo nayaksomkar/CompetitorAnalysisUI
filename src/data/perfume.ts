@@ -726,49 +726,55 @@ export const perfumeAnalysis = {
     },
     growth: convertChart(perfumeCharts.growth),
     growthPie: {
-      title: 'Growth distribution by brand',
+      title: 'YoY growth share (relative)',
       kind: 'pie' as const,
       series: [{
         id: 's-growth',
         name: 'Growth',
         color: '#059669',
-        points: perfumeCharts.growth.datasets.map((d, i) => ({
-          label: d.name ?? `Series ${i + 1}`,
-          value: d.values[d.values.length - 1],
-          color: d.color ?? '#059669',
-        })),
+        // Use absolute growth values for relative proportion
+        points: [
+          { label: 'Forest Essentials', value: 22, color: '#059669' },
+          { label: 'Kama', value: 18, color: '#b45309' },
+          { label: 'Jo Malone', value: 25, color: '#6b7280' },
+          { label: 'Paas', value: 140, color: '#f43f5e' },
+        ],
       }],
       explanation: convertExplanation(perfumeCharts.growth.explanation),
     },
     pricing: convertChart(perfumeCharts.pricing),
     pricingPie: {
-      title: 'Price distribution',
+      title: 'Average 50ml EDP price (₹)',
       kind: 'pie' as const,
       series: [{
         id: 's-price',
         name: 'Price',
         color: '#0ea5e9',
-        points: perfumeCharts.pricing.labels.map((l, i) => ({
-          label: l,
-          value: perfumeCharts.pricing.datasets[0].values[i],
-          color: ['#0ea5e9', '#059669', '#6b7280', '#f43f5e'][i] ?? '#64748b',
-        })),
+        // Show relative price weight
+        points: [
+          { label: 'Forest Essentials', value: 5500, color: '#0ea5e9' },
+          { label: 'Kama', value: 4200, color: '#059669' },
+          { label: 'Jo Malone', value: 8500, color: '#6b7280' },
+          { label: 'Paas', value: 1200, color: '#f43f5e' },
+        ],
       }],
       explanation: convertExplanation(perfumeCharts.pricing.explanation),
     },
     featureAdoption: convertChart(perfumeCharts.feature_adoption),
     featureAdoptionPie: {
-      title: 'Feature adoption breakdown',
+      title: 'Top feature by brand leader',
       kind: 'pie' as const,
       series: [{
         id: 's-feat',
         name: 'Adoption',
         color: '#8b5cf6',
-        points: perfumeCharts.feature_adoption.labels.map((l, i) => ({
-          label: l,
-          value: perfumeCharts.feature_adoption.datasets.reduce((sum, d) => sum + (d.values[i] ?? 0), 0),
-          color: ['#0ea5e9', '#059669', '#f59e0b', '#f43f5e'][i] ?? '#64748b',
-        })),
+        points: [
+          { label: 'Discovery set (Jo Malone)', value: 72, color: '#0ea5e9' },
+          { label: 'Gifting (Jo Malone)', value: 85, color: '#059669' },
+          { label: 'Discovery set (FE)', value: 65, color: '#f59e0b' },
+          { label: 'Refill (FE)', value: 15, color: '#f43f5e' },
+          { label: 'Gifting (FE)', value: 71, color: '#8b5cf6' },
+        ],
       }],
       explanation: convertExplanation(perfumeCharts.feature_adoption.explanation),
     },
