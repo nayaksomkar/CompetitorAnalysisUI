@@ -409,8 +409,8 @@ export const perfumeReports = [
     type: 'Executive Summary', date: '2026-09-01', pages: 8,
     summary: 'The Indian premium fragrance market is growing; Scentra\'s wedge is a curated hero line + AI discovery + Tier-2 expansion.',
     sections: [
-      { heading: 'TL;DR', detail: 'Premium fragrance growing 11% YoY; the wedge is focus + AI discovery + Tier-2.' },
-      { heading: 'Market', detail: 'Indian prestige fragrance now ₹4,200 Cr; niche at 15% of premium and growing fastest.' },
+      { heading: 'TL;DR', body: 'Premium fragrance growing 11% YoY; the wedge is focus + AI discovery + Tier-2.' },
+      { heading: 'Market', body: 'Indian prestige fragrance now ₹4,200 Cr; niche at 15% of premium and growing fastest.' },
       { heading: 'Top 3 Moves', body: '1) Launch 6 hero SKUs. 2) Ship the AI scent quiz. 3) Plan Tier-2 expansion.' },
     ],
     explanation: {
@@ -709,6 +709,21 @@ export const perfumeAnalysis = {
   })),
   charts: {
     marketShare: convertChart(perfumeCharts.market_share),
+    marketSharePie: {
+      title: 'Market share distribution',
+      kind: 'pie' as const,
+      series: [{
+        id: 's-share',
+        name: 'Share',
+        color: '#10a37f',
+        points: perfumeCharts.market_share.labels.map((l, i) => ({
+          label: l,
+          value: perfumeCharts.market_share.datasets[0].values[i],
+          color: ['#0ea5e9', '#059669', '#6b7280', '#f43f5e', '#8b5cf6'][i] ?? '#64748b',
+        })),
+      }],
+      explanation: convertExplanation(perfumeCharts.market_share.explanation),
+    },
     growth: convertChart(perfumeCharts.growth),
     pricing: convertChart(perfumeCharts.pricing),
     featureAdoption: convertChart(perfumeCharts.feature_adoption),

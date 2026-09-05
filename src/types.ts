@@ -150,7 +150,7 @@ export interface Report {
   explanation?: Explanation;
 }
 
-export interface ChartPoint { label: string; value: number; }
+export interface ChartPoint { label: string; value: number; color?: string; }
 
 export interface ChartSeries {
   id: ID;
@@ -223,6 +223,7 @@ export interface AnalysisData {
   reports: Report[];
   charts: {
     marketShare: ChartData;
+    marketSharePie: ChartData;
     growth: ChartData;
     pricing: ChartData;
     featureAdoption: ChartData;

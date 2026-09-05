@@ -42,15 +42,15 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: C
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="px-6 py-4 border-b border-ink-100 flex items-center justify-between gap-3">
+    <div className="flex flex-col h-full min-h-0">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 border-b border-ink-100 dark:border-ink-700 flex items-center justify-between gap-3 shrink-0">
         <div>
-          <h1 className="text-lg font-semibold text-ink-900">Chat — {data.profile.businessName}</h1>
-          <p className="text-xs text-ink-500">Ask anything about the analysis. Answers include interactive assets.</p>
+          <h1 className="text-lg font-semibold text-ink-900 dark:text-ink-100">Chat — {data.profile.businessName}</h1>
+          <p className="text-xs text-ink-500 dark:text-ink-400">Ask anything about the analysis. Answers include interactive assets.</p>
         </div>
         <div className="flex items-center gap-2">
           {onSwitchSample && (
-            <button onClick={onSwitchSample} className="btn-secondary text-xs">
+            <button onClick={onSwitchSample} className="btn-secondary text-xs dark:bg-ink-700 dark:border-ink-600 dark:text-ink-200 dark:hover:bg-ink-600">
               <Icon.Refresh />
               Switch analysis
             </button>
@@ -58,22 +58,22 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: C
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6 space-y-6">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {messages.map((m) => (
           <Message key={m.id} message={m} data={data} />
         ))}
         {thinking && <ThinkingDots />}
       </div>
 
-      <div className="border-t border-ink-100 px-6 py-4 bg-white">
+      <div className="border-t border-ink-100 dark:border-ink-700 px-4 sm:px-6 py-3 sm:py-4 bg-white dark:bg-ink-800 shrink-0">
         <div className="flex flex-wrap gap-2 mb-3">
           {suggestions.map((s) => (
-            <button key={s} onClick={() => submit(s)} className="pill bg-ink-50 text-ink-700 hover:bg-ink-100 border border-ink-100">
+            <button key={s} onClick={() => submit(s)} className="pill bg-ink-50 dark:bg-ink-700 text-ink-700 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-600 border border-ink-100 dark:border-ink-600">
               {s}
             </button>
           ))}
         </div>
-        <div className="flex items-end gap-2 rounded-2xl border border-ink-200 bg-white p-2 shadow-soft">
+        <div className="flex items-end gap-2 rounded-2xl border border-ink-200 dark:border-ink-600 bg-white dark:bg-ink-800 p-2 shadow-soft">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -85,7 +85,7 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: C
             }}
             placeholder={`Ask about ${data.profile.businessName}…`}
             rows={1}
-            className="flex-1 resize-none outline-none bg-transparent px-2 py-1.5 text-sm placeholder:text-ink-400 max-h-40"
+            className="flex-1 resize-none outline-none bg-transparent px-2 py-1.5 text-sm text-ink-900 dark:text-ink-100 placeholder:text-ink-400 dark:placeholder:text-ink-500 max-h-40"
           />
           <button
             onClick={() => submit(input)}
@@ -96,7 +96,7 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample }: C
             <span className="hidden sm:inline">Send</span>
           </button>
         </div>
-        <p className="text-[11px] text-ink-400 mt-2">Press Enter to send, Shift+Enter for newline.</p>
+        <p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2">Press Enter to send, Shift+Enter for newline.</p>
       </div>
     </div>
   );

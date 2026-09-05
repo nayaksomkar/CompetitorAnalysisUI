@@ -316,9 +316,10 @@ function wireToAnalysis(wire: AnalyzeResponse, profile?: BusinessProfile, sample
     explanation: mapExplanation(r.explanation),
   }));
   const chartsList = (wire.charts ?? []).map(mapChart);
-  // Our UI expects 4 named charts; map the first 4 by position.
+  // Our UI expects named charts; map by position with fallbacks.
   const charts = {
     marketShare: chartsList[0] ?? base.charts.marketShare,
+    marketSharePie: base.charts.marketSharePie,
     growth: chartsList[1] ?? base.charts.growth,
     pricing: chartsList[2] ?? base.charts.pricing,
     featureAdoption: chartsList[3] ?? base.charts.featureAdoption,

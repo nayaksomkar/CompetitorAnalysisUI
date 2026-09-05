@@ -5,10 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Competitive Insights</title>
-    <script type="module" crossorigin src="/assets/index-CwDuPtpy.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DJMIcj_C.css">
+    <script>
+      // Prevent theme flash on page load
+      (function() {
+        var theme = localStorage.getItem('theme');
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-Cr_P38St.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D1iDe2Pu.css">
   </head>
-  <body class="bg-white text-ink-900 antialiased">
+  <body class="bg-white dark:bg-ink-900 text-ink-900 dark:text-ink-100 antialiased">
     <div id="root"></div>
   </body>
 </html>

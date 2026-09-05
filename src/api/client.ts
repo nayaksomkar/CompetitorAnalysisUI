@@ -209,8 +209,84 @@ const mockApi: ApiClient = {
   },
 };
 
-export const api: ApiClient = mockApi;
+// LLM Ping microservice for AI chat responses
+const LLMPING_URL = 'https://llmping.onrender.com';
 
-// To swap in a real backend later:
-// export const api: ApiClient = new HttpApi({ baseUrl: import.meta.env.VITE_API_URL });
-// class HttpApi implements ApiClient { ... }
+class LlmPingApi implements ApiClient {
+  async bootstrap(profile: BusinessProfile, sampleId: SampleId): Promise<AnalysisData> {
+    // For bootstrap, use local sample data (competitor engine not yet integrated)
+    await new Promise((r) => setTimeout(r, 250));
+    const base = samples[sampleId];
+    return { ...base, profile: { ...base.profile, ...profile } };
+  }
+
+  async ask({ prompt, context }: AskOptions): Promise<AskResult> {
+    const data = context ?? samples.perfume;
+
+    try {
+      // Call LLM Ping microservice
+      const response = await fetch(`${LLMPING_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: prompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`LLM Ping failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      // LLM Ping returns: { response: "..." } or { answer: "..." } or { text: "..." }
+      const aiText = result.response ?? result.answer ?? result.text ?? result.result ?? '';
+
+      return {
+        text: aiText || `Here's what I found about "${prompt}" for ${data.profile.businessName}.`,
+        assets: this.buildAssetsFromPrompt(prompt, data),
+      };
+    } catch (error) {
+      // Fallback to local response if LLM Ping is unavailable
+      console.warn('LLM Ping unavailable, using local fallback:', error);
+      return buildAskResult(prompt, data);
+    }
+  }
+
+  async regenerate({ section, data }: { section: string; data: AnalysisData }): Promise<ChatAsset[]> {
+    await new Promise((r) => setTimeout(r, 350));
+    return buildAskResult(section, data).assets;
+  }
+
+  // Helper to build UI assets based on prompt intent
+  private buildAssetsFromPrompt(prompt: string, data: AnalysisData): ChatAsset[] {
+    const p = prompt.toLowerCase();
+    if (p.includes('swot')) {
+      const c = data.competitors[1];
+      return [{ kind: 'swot', data: { competitorId: c.id, swot: c.swot }, explanation: c.explanation }];
+    }
+    if (p.includes('pric')) {
+      return [{ kind: 'pricing-table', data: { title: 'Pricing comparison', tiers: data.pricingTiers.slice(0, 4) } }];
+    }
+    if (p.includes('chart') || p.includes('graph') || p.includes('market share')) {
+      return [{ kind: 'chart', data: data.charts.marketShare }];
+    }
+    if (p.includes('competitor') || p.includes('compare')) {
+      return [{ kind: 'comparison-table', data: {
+        title: 'Competitor comparison',
+        columns: ['Vendor', 'Share', 'Growth', 'Position'],
+        rows: data.competitors.map((c) => ({
+          name: c.name,
+          cells: [`${c.marketShare}%`, `${c.growthRate}%`, c.marketPosition ?? '—'],
+        })),
+      }}];
+    }
+    // Default: return overview assets
+    return [
+      { kind: 'insight', data: data.insights[0] },
+      { kind: 'chart', data: data.charts.marketShare },
+    ];
+  }
+}
+
+// Toggle between mock and LLM Ping API
+const USE_LLM_PING = true; // Set to false to use local mock data
+
+export const api: ApiClient = USE_LLM_PING ? new LlmPingApi() : mockApi;
