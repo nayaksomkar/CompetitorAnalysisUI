@@ -26,7 +26,7 @@ const SERVICES: Omit<ServiceStatus, 'status' | 'latency'>[] = [
     id: 'webhunter',
     name: 'Web Hunter',
     description: 'Web fetch & search',
-    healthUrl: 'https://webhunter.onrender.com/health',
+    healthUrl: 'https://webhunter-1v83.onrender.com/health',
   },
 ];
 
