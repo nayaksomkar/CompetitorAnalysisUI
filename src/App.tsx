@@ -161,6 +161,14 @@ export default function App() {
             <TabContent tab={tab} data={data} />
           )}
         </div>
+
+        {/* Footer warning */}
+        <div className="shrink-0 px-4 py-2 border-t border-rose-200/60 dark:border-rose-900/40 bg-rose-50/80 dark:bg-rose-950/30">
+          <p className="text-xs text-rose-600 dark:text-rose-400 text-center flex items-center justify-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-400 dark:bg-rose-500 animate-pulse" />
+            Runs on free Render hosting and a free AI API, so responses may take a little longer.
+          </p>
+        </div>
       </main>
     </div>
   );
