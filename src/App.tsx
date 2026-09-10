@@ -5,6 +5,7 @@ import { TabContent } from './views/TabViews';
 import { tabs } from './components/tabs';
 import { Icon } from './components/icons';
 import { ServerStatus } from './components/ServerStatus';
+import { EndpointSettings, EndpointBadge } from './components/EndpointSettings';
 import type { AnalysisData, BusinessProfile, ChatMessage, TabKey } from './types';
 import { api } from './api/client';
 import type { SampleId } from './data';
@@ -28,6 +29,7 @@ export default function App() {
   const [thinking, setThinking] = useState(false);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Apply theme
   useEffect(() => {
@@ -106,6 +108,7 @@ export default function App() {
         onToggleTheme={toggleTheme}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {/* Main content */}
@@ -170,12 +173,21 @@ export default function App() {
           </p>
         </div>
       </main>
+
+      {/* Endpoint Settings Modal */}
+      <EndpointSettings
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSave={() => {
+          // Optionally refresh data with new endpoint
+        }}
+      />
     </div>
   );
 }
 
 function Sidebar({
-  profile, sampleId, activeTab, onTabChange, onSwitch, theme, onToggleTheme, isOpen, onClose,
+  profile, sampleId, activeTab, onTabChange, onSwitch, theme, onToggleTheme, isOpen, onClose, onOpenSettings,
 }: {
   profile: BusinessProfile;
   sampleId: SampleId;
@@ -186,6 +198,7 @@ function Sidebar({
   onToggleTheme: () => void;
   isOpen: boolean;
   onClose: () => void;
+  onOpenSettings: () => void;
 }) {
   const meta = sampleList.find((s) => s.id === sampleId);
   return (
@@ -245,6 +258,7 @@ function Sidebar({
 
       <div className="p-3 border-t border-ink-100 dark:border-ink-700 space-y-2">
         <ServerStatus />
+        <EndpointBadge onOpenSettings={onOpenSettings} />
         <div className="rounded-xl bg-white dark:bg-ink-700 border border-ink-100 dark:border-ink-600 p-3">
           <p className="text-xs text-ink-500 dark:text-ink-400">Sample analysis</p>
           <p className="text-sm font-medium text-ink-900 dark:text-ink-100 mt-0.5">{meta?.label}</p>
