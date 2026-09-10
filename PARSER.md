@@ -2,212 +2,318 @@
 
 ## 1. Core Objective
 
-The parser transforms arbitrary real user input into the data structure required by the UI while remaining resilient when some information cannot be retrieved.
+The parser transforms arbitrary user input into the exact data structure required by the UI. Every value currently displayed in the hardcoded UI must be producible by the parser when a user provides equivalent information.
 
-The sample data is **not a fixed dataset** — it exists only to demonstrate how the UI looks when data is available.
+The sample data (perfume/protein) demonstrates the UI structure — the parser must dynamically generate equivalent structures for ANY user input.
 
-The complete system must support:
-
-```
-User Input
-    ↓
-Context Resolution
-    ↓
-Intent Understanding
-    ↓
-Entity / Requirement Extraction
-    ↓
-Data Retrieval
-    ↓
-Partial / Complete Result Handling
-    ↓
-Normalization
-    ↓
-Derived Data / Calculations
-    ↓
-UI Data Model
-    ↓
-UI Components
-    ↓
-Rendered Dynamic UI
-    ↓
-Updated Instance Context
-```
+**Key Requirements:**
+- Document ALL data the UI displays
+- Fault-tolerance: validation, failure protection, limited retries
+- If some data fails, return only valid data with clear error states
+- **Max 3 companies for dynamic data** (reduces LLM cost)
+- Do NOT modify static/sample data behavior
 
 ---
 
-## 2. UI Component Data Contracts
+## 2. Complete UI Data Inventory
 
-### 2.1 Reverse-Engineered Component Map
+### 2.1 BusinessProfile (Questionnaire Input)
 
-For every UI component, the parser must understand:
+| Field | Type | Required | UI Display Location |
+|-------|------|----------|---------------------|
+| `businessName` | string | Yes | Sidebar, Chat header, Overview title, Action plan title |
+| `idea` | string | Yes | Overview subtitle |
+| `industry` | string | Yes | Overview badge |
+| `productsServices` | string[] | No | Form only (used to derive products) |
+| `targetCustomers` | string | Yes | Form only (used for analysis context) |
+| `geography` | string | No | Overview badge |
+| `pricing` | string | No | Form only (used to derive pricing tiers) |
+| `businessModel` | string | No | Form only (used for analysis context) |
+| `competitors` | string[] | No | Form only (used to derive competitor profiles) |
+| `differentiators` | string | No | Form only (used for SWOT/insights) |
+| `researchGoals` | string[] | No | Form only (used for action plan/reports) |
 
-```
-Component → Data Required → Data Source → Transformation → Rendering → Fallback
-```
-
-### 2.2 BusinessProfile (Questionnaire Input)
-
-| Field | Type | Required | Source |
-|-------|------|----------|--------|
-| `businessName` | string | Yes | user_input |
-| `idea` | string | Yes | user_input |
-| `industry` | string | Yes | user_input/derived |
-| `targetCustomers` | string | Yes | user_input |
-| `geography` | string | No | user_input/inferred |
-| `pricing` | string | No | user_input/inferred |
-| `businessModel` | string | No | user_input/inferred |
-| `differentiators` | string[] | No | user_input |
-| `researchGoals` | string | No | user_input |
-| `competitorNames` | string[] | No | user_input |
-| `productCategories` | string[] | No | user_input/derived |
-
-### 2.3 Competitor
+### 2.2 Competitor (Displayed in CompetitorCard + ComparisonTable)
 
 ```json
 {
   "id": "string (slug)",
   "name": "string",
+  "logoColor": "string (hex color for 2-char logo)",
   "description": "string",
-  "position": "leader|challenger|niche|new_entrant",
+  "funding": "string",
+  "founded": "string",
+  "hq": "string (headquarters location)",
   "marketShare": "number (0-100)",
-  "growth": "number (percentage)",
-  "website": "string (url)",
-  "strengths": ["string"],
-  "weaknesses": ["string"],
+  "growthRate": "number (percentage, can be negative)",
+  "pricingTier": "string (e.g., Premium, Ultra-Premium)",
+  "marketPosition": "Leader|Challenger|Niche|Emerging",
+  "strengths": ["string (up to 3 displayed)"],
+  "weaknesses": ["string (up to 3 displayed)"],
   "swot": {
     "strengths": ["string"],
     "weaknesses": ["string"],
     "opportunities": ["string"],
     "threats": ["string"]
   },
+  "explanation": {
+    "summary": "string",
+    "whyItMatters": ["string"],
+    "evidence": [{ "label": "string", "detail": "string" }],
+    "sources": ["Source"]
+  },
   "status": "complete|partial|loading|failed"
 }
 ```
 
-### 2.4 Product
+**UI Display Locations:**
+- `name`, `logoColor` → Card header with 2-char logo
+- `marketPosition` → Badge (red=Leader, violet=Challenger, green=Niche, amber=Emerging)
+- `pricingTier` → Gray badge
+- `description` → Card body
+- `marketShare` → Stat with "%" suffix
+- `growthRate` → Stat with "%" suffix, green if >30
+- `funding` → Stat or "—"
+- `founded` → Stat or "—"
+- `strengths` → List with check icons (max 3)
+- `weaknesses` → List with alert icons (max 3)
+- `swot` → Expandable 4-panel grid
+- `explanation` → "Explain this" modal
+
+**ComparisonTable columns:** Vendor (name), Share (marketShare%), Growth (growthRate%), Pricing tier, Position, HQ, Biggest weakness (weaknesses[0])
+
+### 2.3 Product / ProductFeature (Displayed in ProductBreakdown)
 
 ```json
 {
   "id": "string",
+  "competitorId": "string (links to competitor)",
   "name": "string",
-  "description": "string",
+  "tagline": "string",
   "category": "string",
-  "maturity": "ga|beta|roadmap",
-  "adoptionRate": "number (0-100)",
+  "pricingModel": "string",
+  "startingPrice": "number",
   "features": [
     {
+      "id": "string",
       "name": "string",
       "description": "string",
-      "maturity": "ga|beta|roadmap"
+      "maturity": "Beta|GA|Deprecated|Roadmap",
+      "adoption": "number (0-100)"
     }
   ],
   "status": "complete|partial|loading|failed"
 }
 ```
 
-### 2.5 PricingTier
+**UI Display Locations:**
+- `name` → Header
+- `category` → Blue badge
+- `pricingModel` → Gray badge
+- `tagline` → Subtitle
+- `startingPrice` → "From ₹{price}"
+- `features` → Filterable/sortable list
+- `maturity` → Badge (GA=green, Beta=amber, Roadmap=blue, Deprecated=gray)
+- `adoption` → Progress bar with "%"
+
+### 2.4 PricingTier (Displayed in PricingTable)
 
 ```json
 {
   "id": "string",
+  "competitorId": "string (links to competitor)",
   "name": "string",
-  "monthlyPrice": "number",
-  "billingCycle": "monthly|annual",
+  "priceMonthly": "number|string ('Custom')",
+  "billing": "monthly|yearly",
   "features": ["string"],
-  "isPopular": "boolean"
+  "bestFor": "string",
+  "pricingModel": "string",
+  "highlighted": "boolean (shows 'Most popular' badge)"
 }
 ```
 
-### 2.6 MarketGap
+**UI Display Locations:**
+- `name` → Card title
+- `highlighted` → "Most popular" badge
+- `pricingModel` → Gray badge
+- `bestFor` → Text
+- `priceMonthly` → "₹{price}" or "Custom"
+- `billing` → "/mo" or "/mo · billed yearly"
+- `features` → List with check icons
+
+### 2.5 MarketGap (Displayed in MarketGapCard)
 
 ```json
 {
   "id": "string",
   "title": "string",
   "description": "string",
-  "opportunityScore": "number (1-10)",
-  "difficultyScore": "number (1-10)",
-  "estimatedRevenue": "string"
+  "opportunityScore": "number (0-100)",
+  "difficultyScore": "number (0-100)",
+  "estimatedRevenue": "string",
+  "affectedSegments": ["string"]
 }
 ```
 
-### 2.7 InsightItem
+**UI Display Locations:**
+- `title` → Card title
+- `description` → Card body
+- `estimatedRevenue` → Gray badge
+- `opportunityScore` → Progress bar "/100" (emerald)
+- `difficultyScore` → Progress bar "/100" (rose)
+- `affectedSegments` → Blue badges
+
+### 2.6 InsightItem (Displayed in InsightCard)
+
+```json
+{
+  "id": "string",
+  "title": "string",
+  "summary": "string",
+  "detail": "string",
+  "category": "Opportunity|Risk|Trend|Recommendation|Insight",
+  "impact": "High|Medium|Low",
+  "confidence": "number (0-100)",
+  "relatedCompetitors": ["string"],
+  "explanation": "Explanation (optional)"
+}
+```
+
+**UI Display Locations:**
+- `category` → Badge (Opportunity=green, Risk=red, Trend=blue, Recommendation=violet)
+- `impact` → "Impact: {impact}" badge (High=red, Medium=amber, Low=gray)
+- `confidence` → "{confidence}% confidence"
+- `title` → Card title
+- `summary` → Card body
+- `detail` → Expanded content
+- `explanation` → "Explain this" modal
+
+### 2.7 ActionPlanItem (Displayed in ActionPlanList)
 
 ```json
 {
   "id": "string",
   "title": "string",
   "description": "string",
-  "category": "string",
-  "impact": "high|medium|low",
-  "confidence": "number (0-100)"
-}
-```
-
-### 2.8 ActionPlanItem
-
-```json
-{
-  "id": "string",
-  "title": "string",
-  "description": "string",
+  "rationale": "string",
+  "owner": "string",
   "priority": "P0|P1|P2",
-  "horizon": "30d|60d|90d",
-  "effort": "low|medium|high",
-  "owner": "string"
+  "horizon": "Now|Next|Later",
+  "effort": "Low|Medium|High",
+  "impact": "Low|Medium|High"
 }
 ```
 
-### 2.9 Report
+**UI Display Locations:**
+- `priority` → Group header (P0="Ship now", P1="Next", P2="Later")
+- `title` → Item title
+- `description` → Item body
+- `rationale` → "Why: {rationale}"
+- `owner` → "Owner: {owner}"
+- `effort` → "Effort: {effort}"
+- `impact` → "Impact: {impact}"
+- `horizon` → "Horizon: {horizon}"
+
+### 2.8 Report / ReportSection (Displayed in ReportCard)
 
 ```json
 {
   "id": "string",
   "title": "string",
-  "type": "market|competitive|strategic",
+  "summary": "string",
+  "type": "Executive Summary|Deep Dive|Market Landscape|Go-to-Market",
+  "date": "string",
+  "pages": "number",
   "sections": [
     {
       "heading": "string",
-      "content": "string"
+      "body": "string"
     }
   ]
 }
 ```
 
-### 2.10 ChartData
+**UI Display Locations:**
+- `type` → Blue badge
+- `pages` → "{pages} pages" gray badge
+- `date` → Text
+- `title` → Card title
+- `summary` → Card body
+- `sections` → Expandable list with heading (uppercase) + body
+
+### 2.9 ChartData (Displayed in Chart)
 
 ```json
 {
-  "id": "string",
   "title": "string",
-  "type": "bar|line|area|radar|pie",
+  "kind": "bar|line|area|radar|pie",
+  "xLabel": "string",
+  "yLabel": "string",
   "series": [
     {
+      "id": "string",
       "name": "string",
       "color": "string (hex)",
       "points": [
-        { "label": "string", "value": "number" }
+        {
+          "label": "string",
+          "value": "number",
+          "color": "string (optional)"
+        }
       ]
     }
   ]
 }
 ```
 
-### 2.11 Source
+**UI Display Locations:**
+- `title` → Chart title
+- `kind` → Determines chart type rendered
+- `series` → Data visualization with legend
+- `points` → Individual data points with hover tooltips
+
+### 2.10 Source (Displayed in SourcesList)
 
 ```json
 {
   "id": "string",
   "title": "string",
-  "publisher": "string",
-  "date": "string (ISO date)",
-  "url": "string",
-  "snippet": "string"
+  "url": "string (optional)",
+  "publisher": "string (optional)",
+  "date": "string (optional)",
+  "snippet": "string (optional)"
 }
 ```
 
-### 2.12 SWOT (Business-level)
+**UI Display Locations:**
+- `title` → Source title
+- `publisher` + `date` → "{publisher} · {date}"
+- `snippet` → Body text
+- `url` → External link icon
+
+### 2.11 Explanation (Displayed in Explain modal)
+
+```json
+{
+  "summary": "string",
+  "whyItMatters": ["string"],
+  "evidence": [
+    {
+      "label": "string",
+      "detail": "string"
+    }
+  ],
+  "sources": ["Source"]
+}
+```
+
+**UI Display Locations:**
+- `summary` → Modal body
+- `whyItMatters` → "Why it matters" section with sparkle icons
+- `evidence` → Badge + detail pairs
+- `sources` → List with external links
+
+### 2.12 SWOT (Business-level, displayed in SwotGrid)
 
 ```json
 {
@@ -218,23 +324,10 @@ Component → Data Required → Data Source → Transformation → Rendering →
 }
 ```
 
-### 2.13 ChatAsset (Discriminated Union)
+**UI Display Locations:**
+- 4-panel grid: Strengths (emerald), Weaknesses (rose), Opportunities (sky), Threats (amber)
 
-| Kind | Component | Required Data |
-|------|-----------|---------------|
-| `competitor-card` | CompetitorCard | Competitor |
-| `comparison-table` | ComparisonTable | `{ title, columns, rows }` |
-| `pricing-table` | PricingTable | `{ title, tiers: PricingTier[] }` |
-| `product-breakdown` | ProductBreakdown | Product |
-| `chart` | Chart | ChartData |
-| `swot` | SwotGrid | `{ competitorId, swot }` |
-| `market-gap` | MarketGapCard | MarketGap |
-| `insight` | InsightCard | InsightItem |
-| `report` | ReportCard | Report |
-| `action-plan` | ActionPlanList | `{ title, items: ActionPlanItem[] }` |
-| `dashboard` | OverviewDashboard | AnalysisData |
-
-### 2.14 AnalysisData (Root State)
+### 2.13 AnalysisData (Root State)
 
 ```json
 {
@@ -245,8 +338,8 @@ Component → Data Required → Data Source → Transformation → Rendering →
   "geography": "string",
   "pricing": "string",
   "businessModel": "string",
-  "differentiators": ["string"],
-  "researchGoals": "string",
+  "differentiators": "string",
+  "researchGoals": ["string"],
   "profile": "BusinessProfile",
   "competitors": ["Competitor"],
   "products": ["Product"],
@@ -274,284 +367,184 @@ Component → Data Required → Data Source → Transformation → Rendering →
 
 ---
 
-## 3. Never Assume a Fixed Number of Results
+## 3. Dynamic Result Limits
 
-The UI must **not be hardcoded** to a maximum of five companies, five cards, five results, etc.
+### 3.1 Company Limit (CRITICAL for LLM Cost)
 
-Five sample companies means only: *the sample currently contains five companies.*
+**Maximum 3 competitors for dynamically generated data.**
 
-The parser and UI must support: **0, 1, 2, 3, 5, 10, 20...** results subject to sensible application limits.
+This limit applies ONLY to dynamically generated company data when a user provides their own input. The static/sample data (perfume/protein) remains unchanged with 4 competitors.
 
-The number of displayed results must be determined by the **actual available data and user request**.
+| Data Type | Dynamic Limit | Static/Sample |
+|-----------|---------------|---------------|
+| Competitors | **3 max** | 4 (unchanged) |
+| Products | 2-3 | 4 (unchanged) |
+| PricingTiers | 6-9 | 10 (unchanged) |
+| MarketGaps | 2-3 | 4 (unchanged) |
+| Insights | 3-4 | 4 (unchanged) |
+| Recommendations | 2 | 2 (unchanged) |
+| ActionPlan | 4-6 | 6 (unchanged) |
+| Reports | 2-3 | 3 (unchanged) |
+| Sources | 4-6 | 8 (unchanged) |
 
----
+### 3.2 Why 3 Companies?
 
-## 4. Dynamic Result Collection
-
-Every repeatable entity collection should be represented as an array/list:
-
-```json
-{
-  "competitors": []
-}
-```
-
-**Never** create fixed fields:
-
-```json
-{
-  "competitor1": {},
-  "competitor2": {},
-  "competitor3": {}
-}
-```
-
-The UI iterates over the collection:
-
-```
-competitors → map() → CompetitorCard[]
-```
-
-If only three competitors are retrieved: `competitors.length = 3` → UI renders three cards.
-If seven are available: `competitors.length = 7` → UI renders seven cards.
+- Reduces LLM token usage by ~25%
+- Faster response times
+- Lower cost for free-tier users
+- Still provides meaningful competitive analysis
 
 ---
 
-## 5. Separate "Requested Count" From "Available Count"
+## 4. Fault-Tolerance & Error Handling
 
-The parser must distinguish:
+### 4.1 Validation Rules
 
-```json
-{
-  "requested_count": 10,
-  "retrieved_count": 7,
-  "valid_count": 6,
-  "display_count": 6
-}
-```
+| Field | Validation | Failure Action |
+|-------|------------|----------------|
+| `businessName` | Non-empty string | Return error: "Business name required" |
+| `competitors[].id` | Unique slug | Generate from name: `name.toLowerCase().replace(/\s+/g, '-')` |
+| `competitors[].marketShare` | Number 0-100 | Clamp to range, redistribute if sum ≠ 100 |
+| `competitors[].marketPosition` | Enum: Leader, Challenger, Niche, Emerging | Default: "Emerging" |
+| `competitors[].growthRate` | Number | Default: 0 |
+| `products[].features[].maturity` | Enum: GA, Beta, Roadmap, Deprecated | Default: "GA" |
+| `products[].features[].adoption` | Number 0-100 | Clamp to range |
+| `pricingTiers[].priceMonthly` | Number or "Custom" | Default: "Custom" |
+| `marketGaps[].opportunityScore` | Number 0-100 | Clamp to range |
+| `marketGaps[].difficultyScore` | Number 0-100 | Clamp to range |
+| `insights[].category` | Enum: Opportunity, Risk, Trend, Recommendation, Insight | Default: "Insight" |
+| `insights[].impact` | Enum: High, Medium, Low | Default: "Medium" |
+| `insights[].confidence` | Number 0-100 | Clamp to range |
+| `actionPlan[].priority` | Enum: P0, P1, P2 | Default: "P1" |
+| `actionPlan[].horizon` | Enum: Now, Next, Later | Default: "Next" |
+| `actionPlan[].effort` | Enum: Low, Medium, High | Default: "Medium" |
+| `actionPlan[].impact` | Enum: Low, Medium, High | Default: "Medium" |
+| `reports[].type` | Enum: Executive Summary, Deep Dive, Market Landscape, Go-to-Market | Default: "Executive Summary" |
+| `charts[].kind` | Enum: bar, line, area, radar, pie | Default: "bar" |
 
-If the user asks for 10 companies but only six valid results can be obtained, the application should **not fabricate four additional companies**.
+### 4.2 Retry Policy
 
-```
-Requested: 10
-Found: 6
-Showing: 6
-```
+| Operation | Max Retries | Retry Delay | Fallback |
+|-----------|-------------|-------------|----------|
+| Bootstrap (full analysis) | 2 | 1s | Return partial data |
+| Single competitor generation | 1 | 500ms | Skip competitor |
+| Chart generation | 1 | 500ms | Show "No data available" |
+| Insight generation | 1 | 500ms | Skip insight |
+| Source generation | 0 | - | Omit sources |
 
----
+### 4.3 Partial Result Handling
 
-## 6. Retrieval Stop Conditions
-
-### User-defined stopping condition
-
-If user says "Show me 8 companies" → `target_count = 8`
-
-Retrieval continues until `valid_results >= 8` or another stopping condition is reached.
-
-### Application-defined stopping condition
-
-```json
-{
-  "result_policy": {
-    "default_target": 5,
-    "maximum_results": 20,
-    "minimum_useful_results": 1,
-    "allow_partial_results": true,
-    "continue_until_target": true,
-    "stop_on_source_exhaustion": true
-  }
-}
-```
-
-### Retrieval exhaustion
-
-If retrieval produces only three valid results: `requested = 10, valid_results = 3` → stop when no additional useful results can reasonably be obtained.
-
-**Never create fake filler data.**
-
----
-
-## 7. "Append Until Stop" Collection Model
-
-```
-results = []
-retrieve result
-if valid: append(result)
-check stopping conditions
-if stop condition reached: stop
-otherwise: retrieve next result
-```
-
-Stop conditions:
-1. Requested target reached
-2. Application maximum reached
-3. Retrieval source exhausted
-4. No additional relevant results available
-5. Remaining results fail validation
-6. Retrieval error prevents continuation
-7. Cost/time/resource threshold reached
-
----
-
-## 8. Partial Retrieval Must Be a Valid Success State
-
-Partial data is **not automatically an error**.
-
-Example: User asks for 5 companies.
-- Company A → complete
-- Company B → complete
-- Company C → complete
-- Company D → retrieval failed
-- Company E → retrieval failed
-
-The parser returns:
+**If some data fails, return only valid data:**
 
 ```json
 {
   "status": "partial",
-  "competitors": [{}, {}, {}],
-  "requested_count": 5,
-  "retrieved_count": 3,
-  "failed_count": 2
+  "data": {
+    "competitors": [
+      { "id": "comp-1", "name": "Competitor A", "status": "complete" },
+      { "id": "comp-2", "name": "Competitor B", "status": "complete" },
+      { "id": "comp-3", "name": "Competitor C", "status": "failed" }
+    ]
+  },
+  "missing_data": [
+    {
+      "field": "competitors[2]",
+      "reason": "Failed to generate profile for Competitor C",
+      "severity": "warning"
+    }
+  ]
 }
 ```
 
-The UI still renders the three valid companies. **Do not throw away all successfully retrieved data because some results failed.**
+**UI renders:** 2 competitor cards, skips the 3rd.
 
----
+### 4.4 Per-Entity Status
 
-## 9. Partial Fields Must Also Be Supported
-
-A company may be successfully retrieved while some fields are missing:
-
-```
-✓ Name
-✓ Website
-✓ Description
-✓ Industry
-✗ Revenue
-✗ Employee count
-```
-
-This is still a valid company record. Represent unavailable fields explicitly:
-
-```json
-{
-  "name": "...",
-  "website": "...",
-  "description": "...",
-  "industry": "...",
-  "revenue": null,
-  "employee_count": null
-}
-```
-
-The UI decides how to represent missing values: `—`, `Not available`, `Unknown`, `Not provided`.
-
-**Do not invent values solely to make the card look complete.**
-
----
-
-## 10. Per-Entity Status
-
-Every dynamically retrieved entity should have its own status:
+Every dynamically retrieved entity has its own status:
 
 ```json
 {
   "id": "...",
   "name": "...",
-  "status": "partial",
-  "data": {},
-  "missing_fields": []
+  "status": "complete|partial|loading|failed",
+  "missing_fields": ["funding", "founded"]
 }
 ```
 
-Possible statuses: `loading`, `complete`, `partial`, `failed`, `unavailable`
+**UI behavior:**
+- `complete` → Render normally
+- `partial` → Render with "—" for missing fields
+- `loading` → Show skeleton/placeholder
+- `failed` → Skip entity, log error
 
-This allows the UI to show:
+### 4.5 Failure Isolation
+
+**One failure must NOT break the entire UI:**
+
 ```
-Company A     Complete
-Company B     Complete
-Company C     Partial
-Company D     Failed
+Competitor A ✓ → Render
+Competitor B ✓ → Render
+Competitor C ✗ → Skip, show error in missing_data
+Competitor D ✓ → Render
 ```
 
-without destroying the rest of the results.
+Errors are isolated to the smallest possible unit.
+
+### 4.6 Graceful Degradation Priority
+
+```
+Complete data → Partial but useful data → Explicit unavailable state → Empty state → Error state
+```
+
+**Never:** Partial data → Discard everything → Broken UI
 
 ---
 
-## 11. Do Not Let One Failure Break the Entire UI
-
-**Bad behavior:**
-```
-Company 1 ✓
-Company 2 ✓
-Company 3 ✗
-→ entire result set fails
-```
-
-**Correct behavior:**
-```
-Company 1 ✓
-Company 2 ✓
-Company 3 ✗
-Company 4 ✓
-→ render 1, 2 and 4
-→ preserve information about 3 if useful
-```
-
-Errors should be isolated to the smallest possible unit.
-
----
-
-## 12. Parser Pipeline
+## 5. Parser Pipeline
 
 ```
-                USER INPUT
-                    │
-                    ▼
-             ┌─────────────┐
-             │    PARSER   │
-             └──────┬──────┘
-                    │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-     Intent      Entities    Constraints
-        │           │           │
-        └───────────┼───────────┘
-                    ▼
-             Operation Plan
-                    │
-                    ▼
-          Retrieval / Processing
-                    │
-                    ▼
-             Normalized Data
-                    │
-        ┌───────────┼────────────┐
-        ▼           ▼            ▼
-     Raw Data   Derived Data   Metadata
-        │           │            │
-        └───────────┼────────────┘
-                    ▼
-              UI Data Model
-                    │
-          ┌─────────┼─────────┐
-          ▼         ▼         ▼
-       Header     Cards     Charts
-          │         │         │
-          ▼         ▼         ▼
-       Filters   Tables   Statistics
-          │         │         │
-          └─────────┼─────────┘
-                    ▼
-                UI STATE
-                    │
-                    ▼
-                RENDER UI
+User Input
+    ↓
+[1] Context Resolution (load from sessionStorage)
+    ↓
+[2] Intent Classification
+    ↓
+[3] Entity Extraction
+    ↓
+[4] Semantic Intermediate Representation
+    ↓
+[5] Gap Analysis (available vs required)
+    ↓
+[6] Operation Planning
+    ↓
+[7] Data Generation (with retry + validation)
+    ↓
+[8] Append Valid Results (until stop condition)
+    ↓
+[9] Normalization
+    ↓
+[10] Derive Charts/Statistics
+    ↓
+[11] Validation
+    ↓
+[12] Context Update
+    ↓
+Structured Output → UI State
 ```
 
-### Step 1: Intent Classification
+### Step 1: Context Resolution
+
+Load existing context from `sessionStorage`:
+```json
+{
+  "business": { "name": "...", "industry": "..." },
+  "entities": { "competitors": ["id1", "id2"], "focus": "id1" },
+  "constraints": { "included": [], "excluded": [] },
+  "keywords": ["keyword1", "keyword2"]
+}
+```
+
+### Step 2: Intent Classification
 
 | Intent | Description |
 |--------|-------------|
@@ -561,9 +554,9 @@ Errors should be isolated to the smallest possible unit.
 | `compare` | Compare entities side-by-side |
 | `explain` | Explain a specific insight/data point |
 | `regenerate` | Recreate a specific section |
-| `follow-up` | Reference previous context (requires instance context) |
+| `follow-up` | Reference previous context |
 
-### Step 2: Entity Extraction
+### Step 3: Entity Extraction
 
 ```json
 {
@@ -580,7 +573,7 @@ Errors should be isolated to the smallest possible unit.
 }
 ```
 
-### Step 3: Semantic Intermediate Representation
+### Step 4: Semantic Intermediate Representation
 
 ```json
 {
@@ -594,11 +587,11 @@ Errors should be isolated to the smallest possible unit.
 }
 ```
 
-### Step 4: Gap Analysis
+### Step 5: Gap Analysis
 
 Determine what data already exists vs. what must be retrieved.
 
-### Step 5: Operation Planning
+### Step 6: Operation Planning
 
 | Operation | When Needed |
 |-----------|-------------|
@@ -609,213 +602,131 @@ Determine what data already exists vs. what must be retrieved.
 | `categorize` | Assign positions, maturity levels, priorities |
 | `generate` | Create charts, action plans, reports from extracted data |
 
-### Step 6: Retrieval with Append Model
+### Step 7: Data Generation with Retry
 
-Append valid results until stop condition reached.
+For each entity type, generate with retry logic:
 
-### Step 7: Validation
+```
+for each competitor (max 3):
+  retry_count = 0
+  while retry_count < max_retries:
+    try:
+      competitor = generate_competitor()
+      if validate(competitor):
+        append(competitors, competitor)
+        break
+    catch error:
+      retry_count++
+      if retry_count >= max_retries:
+        log_error(error)
+        break
+```
 
-Validate each returned record independently.
+### Step 8: Append Valid Results
 
-### Step 8: Normalization
+Append valid entities until stop condition:
+1. Target count reached (3 for competitors)
+2. All input competitors processed
+3. Retrieval exhausted
+
+### Step 9: Normalization
 
 | Field | Normalization |
 |-------|---------------|
 | `marketShare` | Number 0-100, sum to 100 across competitors |
-| `growth` | Number (percentage, can be negative) |
-| `adoptionRate` | Number 0-100 |
+| `growthRate` | Number (percentage) |
+| `adoption` | Number 0-100 |
 | `confidence` | Number 0-100 |
-| `opportunityScore` | Number 1-10 |
-| `difficultyScore` | Number 1-10 |
-| `position` | One of: leader, challenger, niche, new_entrant |
-| `maturity` | One of: ga, beta, roadmap |
-| `impact` | One of: high, medium, low |
+| `opportunityScore` | Number 0-100 |
+| `difficultyScore` | Number 0-100 |
+| `marketPosition` | One of: Leader, Challenger, Niche, Emerging |
+| `maturity` | One of: GA, Beta, Roadmap, Deprecated |
+| `impact` | One of: High, Medium, Low |
 | `priority` | One of: P0, P1, P2 |
-| `horizon` | One of: 30d, 60d, 90d |
-| `effort` | One of: low, medium, high |
-| `pricing` | One of: budget, mid, premium, luxury |
+| `horizon` | One of: Now, Next, Later |
+| `effort` | One of: Low, Medium, High |
+| `pricingTier` | One of: Budget, Mid, Premium, Ultra-Premium |
 | `id` | URL-safe slug derived from name |
 
-### Step 9: Derive
+### Step 10: Derive Charts
 
-Calculate required statistics, rankings, summaries from actual data.
+Generate charts from actual competitor data:
+- `marketShare` → Bar chart from `competitors[].marketShare`
+- `marketSharePie` → Pie chart from same data
+- `growth` → Bar chart from `competitors[].growthRate`
+- `growthPie` → Pie chart from same data
+- `pricing` → Bar chart from `pricingTiers[].priceMonthly`
+- `pricingPie` → Pie chart from same data
+- `featureAdoption` → Bar chart from `products[].features[].adoption`
+- `featureAdoptionPie` → Pie chart from same data
 
-### Step 10: UI State
+### Step 11: Validation Checklist
 
-Create/update the state consumed by the frontend.
+- [ ] `businessName` present and non-empty
+- [ ] `competitors` array has 1-3 items with unique IDs
+- [ ] `marketShare` values sum to 100 (±1 rounding tolerance)
+- [ ] All `id` fields are unique within their type
+- [ ] Chart `series` arrays have consistent point counts
+- [ ] All enum fields use valid values
+- [ ] No placeholder/empty strings in required fields
 
-### Step 11: Context Update
+### Step 12: Context Update
 
-Store compact summary for follow-up requests.
-
----
-
-## 13. Single Source of Truth
-
-The parser produces a canonical application state. The UI consumes this state rather than independently interpreting the LLM response.
-
-```
-LLM / Parser → Canonical Application Data → Frontend State → Components
-```
-
-Do not allow individual components to independently guess or reinterpret what the LLM meant.
-
----
-
-## 14. Data Ownership
-
-### LLM / Parser
-- Understanding natural language, intent, entity extraction
-- Semantic interpretation, context resolution
-- Determining required operations, transforming retrieved information
-- Producing structured data
-
-### Data/Retrieval Layer
-- Fetching information, APIs, search, database queries
-- External sources, retrieval failures
-
-### Processing Layer
-- Calculations, sorting, filtering, ranking, aggregation
-- Normalization, validation
-
-### UI State Layer
-- Current displayed data, loading state, error state, partial state
-- Selection, filters, pagination/expansion
-
-### UI Components
-- Rendering, presentation, interaction
-- Displaying available/missing information
+Update browser instance context (see Section 7).
 
 ---
 
-## 15. Dynamic Cards / Lists
-
-Any UI component representing a collection must be data-driven:
-
-```
-for each item in data.items:
-    render Card(item)
-```
-
-Applies to: companies, products, people, recommendations, search results, statistics, categories, comparison rows, timeline entries, sources, tags.
-
----
-
-## 16. Dynamic Statistics
-
-Statistics must be calculated from actual data:
-
-```
-Companies = competitors.length
-Average = calculate(valid_items)
-Highest = max(valid_items)
-Lowest = min(valid_items)
-```
-
-If insufficient data exists: `Average = unavailable` rather than an invented value.
-
----
-
-## 17. Dynamic Empty States
-
-The UI must correctly handle `competitors = []` — produce the designed empty state rather than a broken layout.
-
-Do not force an empty card merely to preserve the sample layout.
-
----
-
-## 18. Dynamic Loading States
-
-When retrieval takes time, the UI should represent `loading` without pretending that the final data already exists.
-
-Partial progressive results may be supported:
-
-```
-Searching...
-Company A ✓
-Company B ✓
-Company C loading...
-```
-
----
-
-## 19. Dynamic Result Count in UI
-
-The UI should derive its count from the actual state:
-
-```
-Found 3 companies
-```
-
-when three valid companies exist. Not "Found 5 companies" because the sample contains five.
-
-If user requested 10 but only three were found: `Showing 3 of 10 requested`
-
----
-
-## 20. Data Lifecycle Through the Application
-
-### Stage 1 — Input
-User enters natural language
-
-### Stage 2 — Context
-Current browser-instance context is loaded
-
-### Stage 3 — Interpretation
-Input + Context → intent, entities, constraints, requested output
-
-### Stage 4 — Planning
-What data already exists? What is missing? What must be retrieved/calculated/transformed?
-
-### Stage 5 — Retrieval
-Retrieve only what is necessary
-
-### Stage 6 — Validation
-Validate each returned record independently
-
-### Stage 7 — Append
-Append valid entities to the appropriate collection
-
-### Stage 8 — Stop
-Evaluate stopping policy: target reached? maximum reached? source exhausted? no useful results remaining? error?
-
-### Stage 9 — Normalize
-Convert everything into the canonical schema
-
-### Stage 10 — Derive
-Calculate required statistics, rankings, summaries
-
-### Stage 11 — UI State
-Create/update the state consumed by the frontend
-
-### Stage 12 — Render
-Components render the actual available data
-
-### Stage 13 — Context Update
-Store compact summary of the new state for follow-up requests
-
----
-
-## 21. Parser Output Contract
+## 6. Parser Output Contract
 
 ```json
 {
   "intent": "bootstrap|question|refine|compare|explain|regenerate|follow-up",
   "status": "success|partial|error",
-  "data": {},
+  "data": {
+    "businessName": "string",
+    "industry": "string",
+    "idea": "string",
+    "targetCustomers": "string",
+    "geography": "string",
+    "pricing": "string",
+    "businessModel": "string",
+    "differentiators": "string",
+    "researchGoals": ["string"],
+    "profile": "BusinessProfile",
+    "competitors": ["Competitor"],
+    "products": ["Product"],
+    "pricingTiers": ["PricingTier"],
+    "marketGaps": ["MarketGap"],
+    "insights": ["InsightItem"],
+    "recommendations": ["InsightItem"],
+    "actionPlan": ["ActionPlanItem"],
+    "reports": ["Report"],
+    "charts": {
+      "marketShare": "ChartData",
+      "marketSharePie": "ChartData",
+      "growth": "ChartData",
+      "growthPie": "ChartData",
+      "pricing": "ChartData",
+      "pricingPie": "ChartData",
+      "featureAdoption": "ChartData",
+      "featureAdoptionPie": "ChartData"
+    },
+    "swot": "SWOT",
+    "sources": ["Source"],
+    "conversation": ["ChatMessage"]
+  },
   "derived_data": {
-    "charts_generated": [],
-    "calculations_performed": [],
-    "statistics": {}
+    "charts_generated": ["marketShare", "growth", "pricing", "featureAdoption"],
+    "calculations_performed": ["marketShare_normalization"]
   },
   "ui_state": {
-    "active_tab": "chat|overview|competitors|products|pricing|gaps|insights|reports|sources",
+    "active_tab": "chat|overview|competitors|products|pricing|market-gaps|insights|reports|sources",
     "highlighted_entities": [],
     "result_counts": {
-      "requested": 0,
-      "retrieved": 0,
-      "valid": 0,
-      "displayed": 0
+      "requested": 3,
+      "retrieved": 3,
+      "valid": 2,
+      "displayed": 2
     }
   },
   "operations_performed": ["extract", "infer", "calculate", "normalize"],
@@ -833,9 +744,9 @@ Store compact summary of the new state for follow-up requests
 
 ---
 
-## 22. Browser Instance Context
+## 7. Browser Instance Context
 
-### 22.1 Storage
+### 7.1 Storage
 
 Use `sessionStorage` (cleared when tab/browser closes):
 
@@ -843,7 +754,7 @@ Use `sessionStorage` (cleared when tab/browser closes):
 const CONTEXT_KEY = 'competitor_analysis_context';
 ```
 
-### 22.2 Context Structure
+### 7.2 Context Structure
 
 ```json
 {
@@ -855,14 +766,14 @@ const CONTEXT_KEY = 'competitor_analysis_context';
     "model": "string"
   },
   "entities": {
-    "competitors": ["id1", "id2"],
+    "competitors": ["id1", "id2", "id3"],
     "products": ["id1", "id2"],
     "focus": "current focus entity id"
   },
   "result_meta": {
-    "requested_count": 5,
-    "retrieved_count": 3,
-    "filters": ["technology", "India"]
+    "requested_count": 3,
+    "retrieved_count": 2,
+    "filters": []
   },
   "constraints": {
     "included": ["what to include"],
@@ -872,18 +783,18 @@ const CONTEXT_KEY = 'competitor_analysis_context';
 }
 ```
 
-### 22.3 What to Store
+### 7.3 What to Store
 
 | Category | Examples |
 |----------|----------|
 | Business identity | name, industry, pricing tier, model |
-| Active entities | competitor IDs being discussed |
-| Result metadata | requested/retrieved counts, current filters |
-| Active constraints | "exclude X", "focus on Y", "compare A vs B" |
-| Current focus | Which entity/product is the active subject |
-| Keyword tags | 5-10 compact keywords for reference resolution |
+| Active entities | competitor IDs (max 3) |
+| Result metadata | requested/retrieved counts |
+| Active constraints | "exclude X", "focus on Y" |
+| Current focus | Which entity is active |
+| Keyword tags | 5-10 compact keywords |
 
-### 22.4 What NOT to Store
+### 7.4 What NOT to Store
 
 - Full conversation history
 - Complete AnalysisData payload
@@ -892,14 +803,14 @@ const CONTEXT_KEY = 'competitor_analysis_context';
 - Chart data (regenerate on demand)
 - Sensitive business data beyond session
 
-### 22.5 Context Update Strategy
+### 7.5 Context Update Strategy
 
 ```
 New User Input
        ↓
 Combine with Current Context
        ↓
-Resolve References ("it", "that one", "cheaper option")
+Resolve References
        ↓
 Parse + Process
        ↓
@@ -908,198 +819,45 @@ Generate Compact Context Summary
 Overwrite (don't append) Context in sessionStorage
 ```
 
-### 22.6 Context Compression Example
-
-**Before:**
-```json
-{
-  "business": { "name": "Maison Velora", "industry": "perfume" },
-  "entities": { "competitors": ["chanel", "dior", "tom-ford"] },
-  "constraints": { "included": ["luxury"], "excluded": [] },
-  "keywords": ["niche", "fragrance", "premium"]
-}
-```
-
-**User says:** "Actually focus on mass market instead, and add Zara"
-
-**After:**
-```json
-{
-  "business": { "name": "Maison Velora", "industry": "perfume" },
-  "entities": { "competitors": ["zara", "h&m", "chanel"] },
-  "constraints": { "included": ["mass-market"], "excluded": ["luxury"] },
-  "keywords": ["mass", "market", "accessible", "zara"]
-}
-```
-
 ---
 
-## 23. Context Must Track Result Collections
-
-The instance context should not store every complete result. Instead store a compact representation:
-
-```json
-{
-  "active_topic": "company comparison",
-  "entities": ["Company A", "Company B", "Company C"],
-  "requested_count": 5,
-  "retrieved_count": 3,
-  "filters": ["technology", "India"],
-  "keywords": ["valuation", "revenue", "employees"]
-}
-```
-
-Full records remain in the application state/data layer. The context only needs enough information to understand subsequent requests.
-
----
-
-## 24. Context and UI State Are Different
-
-### UI Data
-Contains what the application currently needs to render. Can be relatively detailed.
-
-### Instance Context
-Contains a compact semantic summary needed for future interpretation. Should be small.
-
-**Example:**
-- UI Data → complete company records
-- Instance Context → "User is comparing 3 technology companies in India; revenue and valuation are currently selected."
-
----
-
-## 25. Follow-Up Input Must Modify Existing State
-
-If user says "Remove Company B":
-
-```
-Current Context + Current UI State + New Input → Updated UI State
-```
-
-Not start from zero.
-
-If user says "Add two more" and three companies currently exist: `3 + 2 = 5` subject to retrieval success and application limits.
-
-If only one additional company can be retrieved: `3 + 1 = 4`. The UI renders four.
-
----
-
-## 26. User-Requested Count Is a Target, Not a Guarantee
-
-`user_request = 10 companies` means `target = 10`, not `always return exactly 10`.
-
-Valid outcomes:
-- 10 available → show 10
-- 7 available → show 7
-- 3 available → show 3
-- 0 available → show empty state
-
-**Never fabricate data to satisfy the requested count.**
-
----
-
-## 27. Configurable Result Policy
-
-```json
-{
-  "result_policy": {
-    "default_target": 5,
-    "maximum_results": 20,
-    "minimum_useful_results": 1,
-    "allow_partial_results": true,
-    "continue_until_target": true,
-    "stop_on_source_exhaustion": true
-  }
-}
-```
-
-These values should be configuration, not scattered magic numbers throughout the code.
-
----
-
-## 28. Never Hardcode UI Limits Into the Parser
-
-Avoid: `companies.slice(0, 5)` unless `5` is explicitly the configured application maximum.
-
-Prefer: `companies.slice(0, MAX_RESULTS)` where `MAX_RESULTS` comes from configuration.
-
-Better still, if the UI naturally supports all valid results, do not unnecessarily slice the collection.
-
----
-
-## 29. Graceful Degradation
-
-Priority:
-```
-Complete data → Partial but useful data → Explicit unavailable state → Empty state → Error state
-```
-
-**Never:** Partial data → Discard everything → Broken UI
-
----
-
-## 30. Parser Must Be UI-Aware but Not UI-Coupled
-
-The parser must understand what data the UI requires. However, it should not contain presentation logic.
-
-**Correct:**
-```json
-{
-  "competitor": {
-    "name": "...",
-    "status": "active"
-  }
-}
-```
-
-**Incorrect:**
-```json
-{
-  "competitorCard": {
-    "textColor": "blue",
-    "fontSize": 24
-  }
-}
-```
-
----
-
-## 31. Reference Resolution
+## 8. Reference Resolution
 
 | Reference Pattern | Resolution |
 |-------------------|------------|
 | "it" / "that one" | Use `context.entities.focus` |
-| "the cheaper one" | Find lowest `monthlyPrice` in current data |
-| "the leader" | Find competitor with `position: "leader"` |
+| "the cheaper one" | Find lowest `priceMonthly` in current data |
+| "the leader" | Find competitor with `marketPosition: "Leader"` |
 | "compare them" | Use last two entities mentioned |
 | "remove that" | Remove from context.entities |
-| "add X" | Add to context.entities, trigger regeneration |
+| "add X" | Add to context.entities (if < 3), trigger regeneration |
 | "the other one" | Use non-focus entity from context |
 | "same industry" | Use `context.business.industry` |
 
 ---
 
-## 32. Dynamic Operations by Intent
+## 9. Dynamic Operations by Intent
 
-### 32.1 Bootstrap (Initial Analysis)
+### 9.1 Bootstrap (Initial Analysis)
 
 **Trigger:** User provides business description for first time.
 
 **Operations:**
 1. Extract business facts from input
 2. Infer industry, positioning, target market
-3. Append competitors until stop condition (user target or policy max)
+3. Generate up to 3 competitors (with retry)
 4. Generate products based on business type
-5. Generate pricing tiers (infer range from pricing tier)
-6. Generate market gaps based on industry
-7. Generate insights from competitor analysis
-8. Generate 90-day action plan
+5. Generate pricing tiers
+6. Generate market gaps
+7. Generate insights
+8. Generate action plan
 9. Generate reports
-10. Generate charts from actual competitor data
+10. Generate charts from actual data
 11. Generate sources
 12. Generate SWOT
 13. Create initial greeting conversation
 
-### 32.2 Question (Query Existing Data)
+### 9.2 Question (Query Existing Data)
 
 **Trigger:** User asks about displayed data.
 
@@ -1107,10 +865,10 @@ The parser must understand what data the UI requires. However, it should not con
 1. Identify referenced entity from context
 2. Retrieve relevant data
 3. Generate text response
-4. Include relevant ChatAsset for visual display
+4. Include relevant ChatAsset
 5. Update context focus
 
-### 32.3 Refine (Modify Data)
+### 9.3 Refine (Modify Data)
 
 **Trigger:** User requests changes.
 
@@ -1121,16 +879,16 @@ The parser must understand what data the UI requires. However, it should not con
 4. Update charts if competitors/metrics changed
 5. Update context constraints
 
-### 32.4 Compare
+### 9.4 Compare
 
 **Trigger:** User wants side-by-side comparison.
 
 **Operations:**
-1. Identify entities to compare (from context if ambiguous)
+1. Identify entities to compare
 2. Generate comparison-table ChatAsset
-3. Update context focus to compared entities
+3. Update context focus
 
-### 32.5 Regenerate Section
+### 9.5 Regenerate Section
 
 **Trigger:** User wants fresh version of a section.
 
@@ -1142,7 +900,7 @@ The parser must understand what data the UI requires. However, it should not con
 
 ---
 
-## 33. ChatAsset Selection Guide
+## 10. ChatAsset Selection Guide
 
 | User Ask | Primary Response | ChatAsset |
 |----------|------------------|-----------|
@@ -1159,46 +917,9 @@ The parser must understand what data the UI requires. However, it should not con
 
 ---
 
-## 34. Error Handling
+## 11. Implementation Notes
 
-### 34.1 Structured Error Response
-
-```json
-{
-  "status": "partial",
-  "data": {},
-  "missing_data": [
-    {
-      "field": "competitors",
-      "reason": "No competitors mentioned and none could be inferred",
-      "severity": "warning"
-    }
-  ],
-  "error": null
-}
-```
-
-### 34.2 Error Types
-
-| Type | When | Response |
-|------|------|----------|
-| `insufficient_input` | Cannot identify business type | Ask for clarification |
-| `ambiguous_reference` | Cannot resolve "it"/"that" | List possible referents |
-| `calculation_error` | Math doesn't work out | Recalculate, flag if persists |
-| `validation_failure` | Output doesn't match schema | Fix structure, retry |
-
-### 34.3 UI Error States
-
-- `loading` — show during processing
-- `partial` — render available data, show missing indicators
-- `error` — show error message, preserve previous valid state
-- `empty` — show questionnaire for new input
-
----
-
-## 35. Implementation Notes
-
-### 35.1 The Parser is NOT a Formatter
+### 11.1 The Parser is NOT a Formatter
 
 The parser is a **semantic-to-UI data pipeline**:
 
@@ -1206,13 +927,13 @@ The parser is a **semantic-to-UI data pipeline**:
 UNDERSTAND → EXTRACT → RESOLVE → RETRIEVE → CALCULATE → TRANSFORM → NORMALIZE → VALIDATE → STRUCTURE → UPDATE CONTEXT → POPULATE UI
 ```
 
-### 35.2 Frontend Responsibility
+### 11.2 Frontend Responsibility
 
 ```
 RECEIVE STRUCTURED STATE → RENDER COMPONENTS → ACCEPT USER INPUT → SEND INPUT BACK
 ```
 
-### 35.3 Never Hardcode to Sample
+### 11.3 Never Hardcode to Sample
 
 The perfume/protein samples are schema references only. The parser must handle:
 
@@ -1220,9 +941,9 @@ The perfume/protein samples are schema references only. The parser must handle:
 - Different business models (B2B, B2C, marketplace, SaaS, etc.)
 - Different scales (startup, SMB, enterprise)
 - Different information completeness (full paragraph vs. sparse notes)
-- Different result counts (0, 1, 3, 5, 10, 20...)
+- **Max 3 competitors for dynamic data**
 
-### 35.4 Data Consistency Rules
+### 11.4 Data Consistency Rules
 
 1. Chart `series` must reference real competitor IDs
 2. `marketShare` pie chart must match bar chart data
@@ -1231,10 +952,12 @@ The perfume/protein samples are schema references only. The parser must handle:
 5. `sources` should cite real publications when possible
 6. `pricingTiers` should align with business pricing tier
 7. Statistics must reflect actual data counts, not sample counts
+8. `products[].competitorId` must match an existing competitor `id`
+9. `pricingTiers[].competitorId` must match an existing competitor `id`
 
 ---
 
-## 36. Example: Parsing New User Input
+## 12. Example: Parsing New User Input
 
 ### Input:
 > "I'm starting a sustainable sneaker brand in Europe targeting eco-conscious millennials. My main competitors are Allbirds and Veja."
@@ -1244,7 +967,6 @@ The perfume/protein samples are schema references only. The parser must handle:
 {
   "intent": "bootstrap",
   "entities": {
-    "business_names": ["user's brand (unnamed)"],
     "competitor_names": ["Allbirds", "Veja"],
     "industries": ["sustainable fashion", "footwear"],
     "geographic_mentions": ["Europe"]
@@ -1256,15 +978,15 @@ The perfume/protein samples are schema references only. The parser must handle:
   },
   "constraints": ["sustainable", "European market", "millennial target"],
   "missing_information": ["brand name", "pricing tier", "specific features"],
-  "requested_count": null
+  "requested_count": 3
 }
 ```
 
 ### Operations Performed:
 1. Extract: Allbirds, Veja, Europe, sustainable, sneakers, millennials
-2. Infer: pricing likely "premium" (sustainable), model "DTC"
-3. Append competitors until target reached (default 5 or policy max)
-4. Calculate: market shares distributed among valid competitors
+2. Infer: pricing likely "Premium" (sustainable), model "DTC"
+3. Generate 3 competitors (Allbirds, Veja + 1 inferred)
+4. Calculate: market shares distributed among 3 competitors
 5. Generate: products, pricing, gaps, insights, charts from actual data
 6. Normalize: all enum values, IDs, chart structures
 
@@ -1275,16 +997,16 @@ The perfume/protein samples are schema references only. The parser must handle:
   "business": {
     "name": "Your Brand",
     "industry": "sustainable footwear",
-    "pricing": "premium",
+    "pricing": "Premium",
     "model": "DTC"
   },
   "entities": {
-    "competitors": ["allbirds", "veja", "rothys", "nike-sustainable"],
+    "competitors": ["allbirds", "veja", "rothys"],
     "focus": null
   },
   "result_meta": {
-    "requested_count": 5,
-    "retrieved_count": 4,
+    "requested_count": 3,
+    "retrieved_count": 3,
     "filters": ["sustainable", "europe"]
   },
   "constraints": {
@@ -1297,15 +1019,13 @@ The perfume/protein samples are schema references only. The parser must handle:
 
 ---
 
-## 37. Acceptance Criteria
-
-The implementation is correct only if all of the following are true:
+## 13. Acceptance Criteria
 
 ### Dynamic input
 A user can enter information substantially different from the sample data.
 
-### Dynamic result count
-The UI works with 0, 1, 2, 3, 5, 10 or any other supported number of results.
+### Dynamic result count (max 3 companies)
+The UI works with 1, 2, or 3 competitors for dynamic data. Static samples remain at 4.
 
 ### No sample dependency
 Sample values are never required for the application to function.
@@ -1314,7 +1034,7 @@ Sample values are never required for the application to function.
 If only some entities are retrieved, valid entities still appear.
 
 ### Partial entity
-If some fields of an entity are unavailable, the entity can still appear.
+If some fields of an entity are unavailable, the entity can still appear with "—" for missing fields.
 
 ### Failure isolation
 One failed retrieval does not destroy unrelated successful results.
@@ -1322,11 +1042,8 @@ One failed retrieval does not destroy unrelated successful results.
 ### No hallucinated filler
 Missing results are never fabricated merely to satisfy a requested count.
 
-### Configurable limits
-Maximum result limits are configuration-driven.
-
-### Append model
-Results are added dynamically until a valid stop condition is reached.
+### Retry with backoff
+Failed operations retry up to max_retries before falling back.
 
 ### Dynamic statistics
 Counts and aggregates reflect actual data.
@@ -1340,76 +1057,23 @@ Follow-up requests can reference previously established information.
 ### Context compactness
 Only useful semantic context is stored in the browser instance.
 
-### State separation
-UI state, semantic context, raw data, and presentation logic remain appropriately separated.
-
 ### Graceful degradation
 The application remains usable when retrieval is incomplete.
 
 ---
 
-## 38. Final Principle
+## 14. Final Principle
 
 The entire application must behave as a **data-driven dynamic system**, not a sample-data-driven interface.
 
-```
-                 ANY USER INPUT
-                       │
-                       ▼
-              ┌─────────────────┐
-              │ LLM + PARSER    │
-              └────────┬────────┘
-                       │
-                       ▼
-              SEMANTIC UNDERSTANDING
-                       │
-                       ▼
-               OPERATION PLANNER
-                       │
-          ┌────────────┼────────────┐
-          ▼            ▼            ▼
-      RETRIEVE      CALCULATE    TRANSFORM
-          │            │            │
-          └────────────┼────────────┘
-                       ▼
-                 VALIDATE
-                       │
-                       ▼
-              APPEND VALID RESULTS
-                       │
-                       ▼
-              CHECK STOP CONDITION
-                 │           │
-              continue       stop
-                 │           │
-                 └─────┬─────┘
-                       ▼
-                NORMALIZE DATA
-                       │
-                       ▼
-               CANONICAL UI STATE
-                       │
-          ┌────────────┼─────────────┐
-          ▼            ▼             ▼
-       HEADER        CARDS         TABLES
-          │            │             │
-          └────────────┼─────────────┘
-                       ▼
-                 DYNAMIC UI
-                       │
-                       ▼
-             COMPACT CONTEXT UPDATE
-                       │
-                       ▼
-                  NEXT INPUT
-```
-
 **The UI must render what actually exists, not what the sample suggests should exist.**
 
-- If 3 competitors are available, render 3.
-- If 8 are available and permitted, render 8.
+- If 2 competitors are available, render 2.
+- If 3 are available and permitted, render 3.
 - If 0 are available, render the empty state.
-- If one company has incomplete data, render that company with appropriate missing-field states.
+- If one company has incomplete data, render that company with "—" for missing fields.
 - If one retrieval fails, continue with everything else that succeeded.
 
 The parser's job is to continuously convert **real user intent + available information + current instance context** into the **best valid UI state possible**, without relying on fixed sample values or fixed result counts.
+
+**Max 3 competitors for dynamic data to reduce LLM cost.**
