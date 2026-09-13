@@ -4,68 +4,65 @@
 
 @layer base {
   html, body, #root {
-    height: 100%;
+  height: 100%;
   }
   body {
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-  }
-  html.dark {
-    color-scheme: dark;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 }
 
 @layer components {
   .chat-bubble-assistant {
-    @apply bg-ink-50 border border-ink-100 rounded-2xl px-4 py-3;
+  @apply bg-ink-50 border border-ink-100 rounded-2xl px-4 py-3;
   }
   .chat-bubble-user {
-    @apply bg-brand-50 border border-brand-100 rounded-2xl px-4 py-3;
+  @apply bg-brand-50 border border-brand-100 rounded-2xl px-4 py-3;
   }
   .pill {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
   }
   .btn-primary {
-    @apply btn bg-ink-900 text-white hover:bg-ink-800 disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply btn bg-ink-900 text-white hover:bg-ink-800 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-secondary {
-    @apply btn bg-white text-ink-900 border border-ink-200 hover:bg-ink-50;
+  @apply btn bg-white text-ink-900 border border-ink-200 hover:bg-ink-50;
   }
   .btn-ghost {
-    @apply btn text-ink-700 hover:bg-ink-50;
+  @apply btn text-ink-700 hover:bg-ink-50;
   }
   .input {
-    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-200/50 dark:border-ink-600 dark:bg-ink-800 dark:text-ink-100 dark:focus:border-ink-500 dark:focus:ring-ink-700/50 dark:placeholder:text-ink-500;
+  @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-200/50  ;
   }
   .card {
-    @apply bg-white border border-ink-100 rounded-2xl;
+  @apply bg-white border border-ink-100 rounded-2xl;
   }
   .card-hover {
-    @apply transition hover:shadow-soft hover:border-ink-200;
+  @apply transition hover:shadow-soft hover:border-ink-200;
   }
 }
 
 @layer utilities {
   .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0,0,0,0.15) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.15) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  width: 8px;
+  height: 8px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.15);
-    border-radius: 8px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 8px;
   }
 }
 
 /* Progress bar animation */
 @keyframes progress-fill {
   from {
-    width: 0%;
+  width: 0%;
   }
 }
 
@@ -76,54 +73,54 @@
 /* Chart animations */
 @keyframes bar-grow {
   from {
-    transform: scaleY(0);
-    transform-origin: bottom;
+  transform: scaleY(0);
+  transform-origin: bottom;
   }
   to {
-    transform: scaleY(1);
-    transform-origin: bottom;
+  transform: scaleY(1);
+  transform-origin: bottom;
   }
 }
 
 @keyframes line-draw {
   from {
-    stroke-dashoffset: var(--path-length, 1000);
+  stroke-dashoffset: var(--path-length, 1000);
   }
   to {
-    stroke-dashoffset: 0;
+  stroke-dashoffset: 0;
   }
 }
 
 @keyframes pie-in {
   from {
-    transform: scale(0) rotate(-90deg);
-    opacity: 0;
+  transform: scale(0) rotate(-90deg);
+  opacity: 0;
   }
   to {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
+  transform: scale(1) rotate(0deg);
+  opacity: 1;
   }
 }
 
 @keyframes radar-in {
   from {
-    transform: scale(0);
-    opacity: 0;
+  transform: scale(0);
+  opacity: 0;
   }
   to {
-    transform: scale(1);
-    opacity: 1;
+  transform: scale(1);
+  opacity: 1;
   }
 }
 
 @keyframes fade-up {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+  opacity: 0;
+  transform: translateY(8px);
   }
   to {
-    opacity: 1;
-    transform: translateY(0);
+  opacity: 1;
+  transform: translateY(0);
   }
 }
 
@@ -160,8 +157,3 @@
 .bar-delay-5 { animation-delay: 250ms; }
 .bar-delay-6 { animation-delay: 300ms; }
 .bar-delay-7 { animation-delay: 350ms; }
-
-@media (prefers-color-scheme: dark) {
-  html { color-scheme: dark; }
-  body { background: #0b0e13; color: #f4f4f5; }
-}
