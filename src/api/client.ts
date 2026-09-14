@@ -343,24 +343,33 @@ class OrchestratorApi implements ApiClient {
     let fetchError: string | null = null;
 
     try {
-      const response = await fetch(`${baseUrl}/api/v1/parser/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parser_input: {
-            intent,
-            message: prompt,
-            session_id: `ui-${Date.now()}`,
-            context_update: contextUpdate,
-          },
-        }),
-      });
+      const controller = new AbortController();
+      // Orchestrator can take 60-90s for compare/lookup intents.
+      // Give it 100s before falling back to local data so the user isn't stuck.
+      const timeoutId = setTimeout(() => controller.abort(), 100000);
+      try {
+        const response = await fetch(`${baseUrl}/api/v1/parser/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parser_input: {
+              intent,
+              message: prompt,
+              session_id: `ui-${Date.now()}`,
+              context_update: contextUpdate,
+            },
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => '');
-        fetchError = `Orchestrator returned ${response.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`;
-      } else {
-        result = await response.json();
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => '');
+          fetchError = `Orchestrator returned ${response.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`;
+        } else {
+          result = await response.json();
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
     } catch (e) {
       fetchError = e instanceof Error ? e.message : 'Network error reaching orchestrator';
@@ -387,12 +396,17 @@ class OrchestratorApi implements ApiClient {
         }
       }
 
-      if (result.data?.competitors.length) {
+      if (result.data?.competitors?.length) {
         // use existing data
       }
 
+      // Extract text from whichever field has it (LLM answer lands in
+      // data.business_summary for non-lookup intents and in answer.summary
+      // for lookup intents).
       const text =
         result.answer?.summary ??
+        result.data?.business_summary ??
+        result.data?.executive_summary ??
         result.error ??
         (fetchError ? `Backend unavailable — ${fetchError}` : 'No response from orchestrator');
 

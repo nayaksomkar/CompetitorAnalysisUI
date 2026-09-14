@@ -226,10 +226,26 @@ export interface AnswerBlock {
   sources?: Source[];
 }
 
+export interface OrchestratorData {
+  business_summary?: string;
+  executive_summary?: string;
+  positioning?: string;
+  competitors?: any[];
+  swot?: any;
+  charts?: any[];
+  metric_cards?: any[];
+  insights?: any[];
+  recommendations?: any[];
+  action_plan?: any[];
+  report?: string;
+  sources?: any[];
+  [key: string]: any;
+}
+
 export interface OrchestratorResponse {
   intent: string;
   status: 'success' | 'partial' | 'error';
-  data: AnalysisData | null;
+  data: OrchestratorData | null;
   answer: AnswerBlock | null;
   missing_data: { field: string; reason: string; severity: string }[];
   context_update: ContextUpdate | null;
