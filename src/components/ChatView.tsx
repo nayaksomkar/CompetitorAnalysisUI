@@ -10,7 +10,7 @@ import { Chart } from './Chart';
 import { InsightCard, MarketGapCard, ReportCard, ActionPlanList } from './AssetCards';
 import { OverviewDashboard } from './OverviewDashboard';
 import { ContextMenu, type ContextMenuOption } from './ContextMenu';
-import type { ChatMessage, ChatAsset, AnalysisData } from '../types';
+import type { ChatMessage, ChatAsset, AnalysisData, LookupCompetitor } from '../types';
 
 interface ChatProps {
   data: AnalysisData;
@@ -210,6 +210,8 @@ function AssetRender({ asset, data }: { asset: ChatAsset; data: AnalysisData }) 
   case 'report': return <ReportCard report={asset.data} />;
   case 'action-plan': return <ActionPlanList title={asset.data.title} items={asset.data.items} explanation={asset.explanation} />;
   case 'dashboard': return <OverviewDashboard data={asset.data} focusText={asset.focusText} />;
+  case 'lookup-card': return <LookupCard competitor={asset.data} />;
+  case 'lookup-comparison': return <LookupComparison data={asset.data} />;
   default: {
   const _exhaustive: never = asset;
   void _exhaustive;
@@ -242,6 +244,158 @@ function renderInline(s: string): React.ReactNode {
   }
   return <span key={i}>{p}</span>;
   });
+}
+
+// ----- Lookup components (web-searched competitors) -----
+
+function LookupCard({ competitor }: { competitor: LookupCompetitor }) {
+  const confidence = competitor.lookupConfidence ?? 0;
+  const confidenceColor = confidence >= 70 ? 'text-emerald-600' : confidence >= 40 ? 'text-amber-600' : 'text-rose-600';
+  const confidenceLabel = confidence >= 70 ? 'High confidence' : confidence >= 40 ? 'Medium confidence' : 'Low confidence';
+
+  return (
+  <Card>
+  <div className="flex items-start justify-between gap-3 mb-3">
+  <div>
+  <div className="flex items-center gap-2">
+  <h3 className="font-semibold text-ink-900">{competitor.name}</h3>
+  <Badge tone={competitor.source === 'web' ? 'blue' : 'gray'}>
+  {competitor.source === 'web' ? 'From web' : 'From context'}
+  </Badge>
+  </div>
+  {competitor.profile.pricingTier && (
+  <p className="text-xs text-ink-500 mt-0.5">{competitor.profile.pricingTier} · {competitor.profile.marketPosition ?? 'Unknown position'}</p>
+  )}
+  </div>
+  {confidence > 0 && (
+  <div className={`text-xs font-medium ${confidenceColor} shrink-0`}>
+  {confidenceLabel} ({confidence}%)
+  </div>
+  )}
+  </div>
+
+  <p className="text-sm text-ink-700 leading-relaxed mb-3">{competitor.profile.description}</p>
+
+  <div className="grid grid-cols-2 gap-3 mb-3">
+  {competitor.profile.hq && (
+  <div>
+  <p className="text-xs text-ink-500">HQ</p>
+  <p className="text-sm font-medium text-ink-900">{competitor.profile.hq}</p>
+  </div>
+  )}
+  {competitor.profile.founded && (
+  <div>
+  <p className="text-xs text-ink-500">Founded</p>
+  <p className="text-sm font-medium text-ink-900">{competitor.profile.founded}</p>
+  </div>
+  )}
+  {competitor.profile.funding && (
+  <div>
+  <p className="text-xs text-ink-500">Funding</p>
+  <p className="text-sm font-medium text-ink-900">{competitor.profile.funding}</p>
+  </div>
+  )}
+  {competitor.profile.marketShare != null && (
+  <div>
+  <p className="text-xs text-ink-500">Market share</p>
+  <p className="text-sm font-medium text-ink-900">{competitor.profile.marketShare}%</p>
+  </div>
+  )}
+  </div>
+
+  {competitor.profile.strengths.length > 0 && (
+  <div className="mb-2">
+  <p className="text-xs font-semibold text-ink-500 mb-1">Strengths</p>
+  <ul className="space-y-1">
+  {competitor.profile.strengths.map((s, i) => (
+  <li key={i} className="flex items-start gap-2 text-sm text-ink-700">
+  <span className="text-emerald-600 mt-0.5">✓</span>
+  {s}
+  </li>
+  ))}
+  </ul>
+  </div>
+  )}
+
+  {competitor.profile.weaknesses.length > 0 && (
+  <div className="mb-3">
+  <p className="text-xs font-semibold text-ink-500 mb-1">Weaknesses</p>
+  <ul className="space-y-1">
+  {competitor.profile.weaknesses.map((w, i) => (
+  <li key={i} className="flex items-start gap-2 text-sm text-ink-700">
+  <span className="text-rose-500 mt-0.5">!</span>
+  {w}
+  </li>
+  ))}
+  </ul>
+  </div>
+  )}
+
+  {competitor.sources.length > 0 && (
+  <div className="border-t border-ink-100 pt-3">
+  <p className="text-xs font-semibold text-ink-500 mb-2">Sources</p>
+  <div className="space-y-1.5">
+  {competitor.sources.slice(0, 3).map((s) => (
+  <div key={s.id} className="flex items-start gap-2 text-xs">
+  <Icon.External className="w-3 h-3 text-ink-400 mt-0.5 shrink-0" />
+  <div className="min-w-0">
+  <a href={s.url} target="_blank" rel="noreferrer" className="text-ink-700 hover:text-ink-900 truncate block">
+  {s.title}
+  </a>
+  {s.publisher && <span className="text-ink-400"> · {s.publisher}</span>}
+  </div>
+  </div>
+  ))}
+  </div>
+  </div>
+  )}
+  </Card>
+  );
+}
+
+function LookupComparison({ data }: { data: { title: string; competitors: LookupCompetitor[] } }) {
+  return (
+  <Card>
+  <h3 className="font-semibold text-ink-900 mb-3">{data.title}</h3>
+  <div className="overflow-x-auto">
+  <table className="w-full text-sm">
+  <thead>
+  <tr className="border-b border-ink-100">
+  <th className="text-left py-2 pr-4 font-medium text-ink-500">Vendor</th>
+  <th className="text-left py-2 pr-4 font-medium text-ink-500">Position</th>
+  <th className="text-left py-2 pr-4 font-medium text-ink-500">Pricing</th>
+  <th className="text-left py-2 pr-4 font-medium text-ink-500">HQ</th>
+  <th className="text-left py-2 font-medium text-ink-500">Confidence</th>
+  </tr>
+  </thead>
+  <tbody>
+  {data.competitors.map((c) => (
+  <tr key={c.id} className="border-b border-ink-50 last:border-0">
+  <td className="py-2 pr-4">
+  <div className="flex items-center gap-2">
+  <span className="font-medium text-ink-900">{c.name}</span>
+  <Badge tone={c.source === 'web' ? 'blue' : 'gray'}>
+  {c.source === 'web' ? 'Web' : 'Context'}
+  </Badge>
+  </div>
+  </td>
+  <td className="py-2 pr-4 text-ink-700">{c.profile.marketPosition ?? '—'}</td>
+  <td className="py-2 pr-4 text-ink-700">{c.profile.pricingTier ?? '—'}</td>
+  <td className="py-2 pr-4 text-ink-700">{c.profile.hq ?? '—'}</td>
+  <td className="py-2">
+  {c.lookupConfidence != null ? (
+  <span className={`text-xs font-medium ${c.lookupConfidence >= 70 ? 'text-emerald-600' : c.lookupConfidence >= 40 ? 'text-amber-600' : 'text-rose-600'}`}>
+  {c.lookupConfidence}%
+  </span>
+  ) : '—'}
+  </td>
+  </tr>
+  ))}
+  </tbody>
+  </table>
+  </div>
+  </Card>
+  );
 }
 
 // Re-export to keep tree-shaking friendly

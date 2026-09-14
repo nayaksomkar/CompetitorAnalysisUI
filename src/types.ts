@@ -168,6 +168,92 @@ export interface ChartData {
   explanation?: Explanation;
 }
 
+// ---------- Lookup (web-searched competitor) ----------
+
+export interface LookupCompetitor {
+  id: ID;
+  name: string;
+  source: 'web' | 'context';
+  lookupConfidence?: number;
+  profile: {
+    description: string;
+    pricingTier?: string;
+    marketPosition?: 'Leader' | 'Challenger' | 'Niche' | 'Emerging' | 'unknown';
+    marketShare?: number | null;
+    growthRate?: number | null;
+    funding?: string | null;
+    founded?: string | null;
+    hq?: string | null;
+    strengths: string[];
+    weaknesses: string[];
+  };
+  sources: Source[];
+}
+
+// ---------- Orchestrator response (parser/execute) ----------
+
+export interface ContextUpdate {
+  version: number;
+  business: {
+    name: string;
+    industry: string;
+    pricing?: string;
+    model?: string;
+  };
+  entities: {
+    competitors: string[];
+    focus: string | null;
+  };
+  result_meta: {
+    requested_count: number;
+    retrieved_count: number;
+    filters: string[];
+  };
+  constraints: {
+    included: string[];
+    excluded: string[];
+  };
+  keywords: string[];
+}
+
+export interface AnswerBlock {
+  summary: string;
+  competitors?: LookupCompetitor[];
+  comparedTo?: LookupCompetitor[];
+  question?: string;
+  explanation?: string;
+  evidence?: { label: string; detail: string }[];
+  sources?: Source[];
+}
+
+export interface OrchestratorResponse {
+  intent: string;
+  status: 'success' | 'partial' | 'error';
+  data: AnalysisData | null;
+  answer: AnswerBlock | null;
+  missing_data: { field: string; reason: string; severity: string }[];
+  context_update: ContextUpdate | null;
+  evicted_entities: string[];
+  error: string | null;
+  result_counts: {
+    requested: number;
+    retrieved: number;
+    valid: number;
+    displayed: number;
+  };
+  operations_performed: string[];
+  entity_statuses: {
+    competitors: {
+      id: string;
+      name: string;
+      status: 'complete' | 'partial' | 'failed' | 'loading';
+      missing_fields: string[];
+      source?: 'web' | 'context';
+      lookupConfidence?: number;
+    }[];
+  };
+}
+
 // ---------- Chat ----------
 
 // Chat asset discriminated union. Adding a new asset kind? Add a case here,
@@ -183,7 +269,9 @@ export type ChatAsset =
   | { kind: 'insight'; data: InsightItem; explanation?: Explanation }
   | { kind: 'report'; data: Report; explanation?: Explanation }
   | { kind: 'action-plan'; data: { title: string; items: ActionPlanItem[] }; explanation?: Explanation }
-  | { kind: 'dashboard'; data: AnalysisData; focusText?: string };
+  | { kind: 'dashboard'; data: AnalysisData; focusText?: string }
+  | { kind: 'lookup-card'; data: LookupCompetitor; explanation?: Explanation }
+  | { kind: 'lookup-comparison'; data: { title: string; competitors: LookupCompetitor[] }; explanation?: Explanation };
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 

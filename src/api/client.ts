@@ -286,7 +286,126 @@ class LlmPingApi implements ApiClient {
   }
 }
 
-// Toggle between mock and LLM Ping API
+// ----- Orchestrator API (CompetitorEngine) -----
+
+import type { OrchestratorResponse, ContextUpdate } from '../types';
+import { getActiveBaseUrl } from '../components/EndpointSettings';
+
+// Toggle between mock, LLM Ping, and Orchestrator API
+const USE_ORCHESTRATOR = true; // Set to false to use LLM Ping or mock
 const USE_LLM_PING = true; // Set to false to use local mock data
 
-export const api: ApiClient = USE_LLM_PING ? new LlmPingApi() : mockApi;
+class OrchestratorApi implements ApiClient {
+  private getBaseUrl(): string {
+    return getActiveBaseUrl();
+  }
+
+  async bootstrap(profile: BusinessProfile, sampleId: SampleId): Promise<AnalysisData> {
+    await new Promise((r) => setTimeout(r, 250));
+    const base = samples[sampleId];
+    return { ...base, profile: { ...base.profile, ...profile } };
+  }
+
+  async ask({ prompt, context }: AskOptions): Promise<AskResult> {
+    const data = context ?? samples.perfume;
+    const baseUrl = this.getBaseUrl();
+
+    // Build context_update from the current analysis
+    const contextUpdate: ContextUpdate = {
+      version: 1,
+      business: {
+        name: data.profile.businessName,
+        industry: data.profile.industry,
+        pricing: data.profile.pricing,
+        model: data.profile.businessModel,
+      },
+      entities: {
+        competitors: data.competitors.map((c) => c.id),
+        focus: null,
+      },
+      result_meta: {
+        requested_count: data.competitors.length,
+        retrieved_count: data.competitors.length,
+        filters: [],
+      },
+      constraints: { included: [], excluded: [] },
+      keywords: [data.profile.industry],
+    };
+
+    // Classify intent from the prompt
+    const intent = this.classifyIntent(prompt);
+
+    const response = await fetch(`${baseUrl}/api/v1/parser/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parser_input: {
+          intent,
+          message: prompt,
+          session_id: `ui-${Date.now()}`,
+          context_update: contextUpdate,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Orchestrator failed: ${response.status}`);
+    }
+
+    const result: OrchestratorResponse = await response.json();
+
+    // Convert orchestrator response to AskResult
+    const assets: ChatAsset[] = [];
+
+    // If there's an answer block, convert it to assets
+    if (result.answer) {
+      if (result.answer.competitors) {
+        for (const comp of result.answer.competitors) {
+          assets.push({ kind: 'lookup-card', data: comp });
+        }
+      }
+      if (result.answer.comparedTo && result.answer.comparedTo.length > 0) {
+        assets.push({
+          kind: 'lookup-comparison',
+          data: {
+            title: 'Comparison',
+            competitors: result.answer.comparedTo,
+          },
+        });
+      }
+    }
+
+    // If there's data (bootstrap/refine), use it
+    if (result.data) {
+      // Merge any new competitors from the response
+      if (result.data.competitors.length > 0) {
+        // For now, just use the existing data
+      }
+    }
+
+    return {
+      text: result.answer?.summary ?? result.error ?? 'No response from orchestrator',
+      assets,
+    };
+  }
+
+  async regenerate({ section, data }: { section: string; data: AnalysisData }): Promise<ChatAsset[]> {
+    await new Promise((r) => setTimeout(r, 350));
+    return buildAskResult(section, data).assets;
+  }
+
+  private classifyIntent(prompt: string): string {
+    const p = prompt.toLowerCase();
+    if (p.includes('compare') || p.includes('vs')) return 'compare';
+    if (p.includes('add') || p.includes('refine')) return 'refine';
+    if (p.includes('explain')) return 'explain';
+    if (p.includes('regenerate') || p.includes('redo')) return 'regenerate';
+    return 'question';
+  }
+}
+
+export const api: ApiClient = USE_ORCHESTRATOR
+  ? new OrchestratorApi()
+  : USE_LLM_PING
+    ? new LlmPingApi()
+    : mockApi;
