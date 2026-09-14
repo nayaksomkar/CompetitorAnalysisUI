@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from './icons';
 import { Modal } from './Modal';
 
@@ -42,11 +42,11 @@ export interface ServiceConfig {
 }
 
 interface EndpointConfig {
-  version: 2;
+  version: 2 | 3;
   services: ServiceConfig[];
 }
 
-const STORAGE_KEY = 'endpoint_config_v2';
+const STORAGE_KEY = 'endpoint_config_v3';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
@@ -58,6 +58,7 @@ const DEFAULT_CONFIG: EndpointConfig = {
       name: 'Competitor Engine',
       description: 'Scripts & data scraping',
       endpoints: [
+        { id: slug('Competitor Engine · Localhost'), label: 'Competitor Engine · Localhost', url: 'http://localhost:8001' },
         { id: slug('Competitor Engine · Render'), label: 'Competitor Engine · Render', url: 'https://competitorengine.onrender.com', active: true },
       ],
     },
@@ -66,6 +67,7 @@ const DEFAULT_CONFIG: EndpointConfig = {
       name: 'LLM Ping',
       description: 'AI brain',
       endpoints: [
+        { id: slug('LLM Ping · Localhost'), label: 'LLM Ping · Localhost', url: 'http://localhost:8000' },
         { id: slug('LLM Ping · Render'), label: 'LLM Ping · Render', url: 'https://llmping.onrender.com', active: true },
       ],
     },
@@ -74,6 +76,7 @@ const DEFAULT_CONFIG: EndpointConfig = {
       name: 'Web Hunter',
       description: 'Web fetch & search',
       endpoints: [
+        { id: slug('Web Hunter · Localhost'), label: 'Web Hunter · Localhost', url: 'http://localhost:8765' },
         { id: slug('Web Hunter · Render'), label: 'Web Hunter · Render', url: 'https://webhunter-1v83.onrender.com', active: true },
       ],
     },
@@ -83,10 +86,10 @@ const DEFAULT_CONFIG: EndpointConfig = {
 /** Load config from localStorage, migrating from the old shape if needed. */
 export function loadEndpointConfig(): EndpointConfig {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('endpoint_config');
+    const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('endpoint_config_v2') ?? localStorage.getItem('endpoint_config');
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (parsed.version === 2 && Array.isArray(parsed.services)) return parsed;
+      if ((parsed.version === 2 || parsed.version === 3) && Array.isArray(parsed.services)) return { ...parsed, version: 3 };
       // Migrate from v1 (single localhost/render pairs) if needed.
       if (parsed.localhost || parsed.render) {
         return {
@@ -108,9 +111,10 @@ export function loadEndpointConfig(): EndpointConfig {
 }
 
 export function saveEndpointConfig(config: EndpointConfig): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  // Clean up the legacy key
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...config, version: 3 }));
+  // Clean up the legacy keys
   localStorage.removeItem('endpoint_config');
+  localStorage.removeItem('endpoint_config_v2');
 }
 
 /** Get the active URL for a given service. */
@@ -143,6 +147,16 @@ export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsPr
   const [config, setConfig] = useState<EndpointConfig>(loadEndpointConfig);
   const [status, setStatus] = useState<Record<string, 'idle' | 'checking' | 'online' | 'offline'>>({});
   const [editing, setEditing] = useState<{ serviceId: ServiceId; endpointId?: string } | null>(null);
+
+  // Auto-check all endpoints when the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const all = config.services.flatMap((svc) =>
+      svc.endpoints.map((ep) => ({ url: ep.url, key: `${svc.id}:${ep.id}` }))
+    );
+    all.forEach(({ url, key }) => checkHealth(url, key));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const updateService = (serviceId: ServiceId, updater: (svc: ServiceConfig) => ServiceConfig) => {
     setConfig((prev) => ({
@@ -242,7 +256,7 @@ export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsPr
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-medium text-ink-900 truncate">{ep.label}</p>
-                        {ep.active && (
+                        {ep.active && st === 'online' && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500 text-white font-semibold">
                             ACTIVE
                           </span>
