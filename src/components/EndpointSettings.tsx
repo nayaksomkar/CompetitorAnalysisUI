@@ -83,24 +83,56 @@ const DEFAULT_CONFIG: EndpointConfig = {
   ],
 };
 
+/** Fix known-buggy URLs from older versions. */
+function migrateUrls(services: ServiceConfig[]): ServiceConfig[] {
+  const fixes: Record<string, string> = {
+    'http://localhost:8000/competitorengine': 'http://localhost:8001',
+    'https://competitorengine.onrender.com/llmping': 'https://llmping.onrender.com',
+    'https://competitorengine.onrender.com/webhunter': 'https://webhunter-1v83.onrender.com',
+  };
+  return services.map((svc) => ({
+    ...svc,
+    endpoints: svc.endpoints.map((ep) => {
+      // Fix wrong ports (old bug used 8000 for everything)
+      if (svc.id === 'competitor' && ep.url === 'http://localhost:8000') {
+        return { ...ep, url: 'http://localhost:8001' };
+      }
+      if (svc.id === 'webhunter' && ep.url === 'http://localhost:8000') {
+        return { ...ep, url: 'http://localhost:8765' };
+      }
+      // Fix wrong render URLs (all pointed to competitorengine)
+      if (svc.id === 'llmping' && ep.url === 'https://competitorengine.onrender.com') {
+        return { ...ep, url: 'https://llmping.onrender.com' };
+      }
+      if (svc.id === 'webhunter' && ep.url === 'https://competitorengine.onrender.com') {
+        return { ...ep, url: 'https://webhunter-1v83.onrender.com' };
+      }
+      const fixed = fixes[ep.url];
+      return fixed ? { ...ep, url: fixed } : ep;
+    }),
+  }));
+}
+
 /** Load config from localStorage, migrating from the old shape if needed. */
 export function loadEndpointConfig(): EndpointConfig {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('endpoint_config_v2') ?? localStorage.getItem('endpoint_config');
     if (stored) {
       const parsed = JSON.parse(stored);
-      if ((parsed.version === 2 || parsed.version === 3) && Array.isArray(parsed.services)) return { ...parsed, version: 3 };
+      if ((parsed.version === 2 || parsed.version === 3) && Array.isArray(parsed.services)) {
+        return { ...parsed, version: 3, services: migrateUrls(parsed.services) };
+      }
       // Migrate from v1 (single localhost/render pairs) if needed.
       if (parsed.localhost || parsed.render) {
         return {
           version: 2,
-          services: DEFAULT_CONFIG.services.map((svc) => ({
+          services: migrateUrls(DEFAULT_CONFIG.services.map((svc) => ({
             ...svc,
             endpoints: [
               { id: slug(`${svc.name} · ${parsed.activeEndpoint === 'localhost' ? 'Localhost' : 'Render'}`), label: `${svc.name} · ${parsed.activeEndpoint === 'localhost' ? 'Localhost' : 'Render'}`, url: parsed.activeEndpoint === 'localhost' ? parsed.localhost : parsed.render, active: true },
               { id: slug(`${svc.name} · ${parsed.activeEndpoint === 'localhost' ? 'Render' : 'Localhost'}`), label: `${svc.name} · ${parsed.activeEndpoint === 'localhost' ? 'Render' : 'Localhost'}`, url: parsed.activeEndpoint === 'localhost' ? parsed.render : parsed.localhost, active: false },
             ],
-          })),
+          }))),
         };
       }
     }
