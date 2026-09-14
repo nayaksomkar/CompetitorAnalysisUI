@@ -144,15 +144,28 @@ The orchestrator receives `intent` and `message`. It must:
 
 WebHunter is a web search service running at `WEBHUNTER_URL` (e.g., `http://localhost:8765`).
 
-### Search Query Templates
+### WebHunter API Endpoints
 
-For each unknown company, run these searches (pick the best 2-3 based on context):
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Health check |
+| `POST` | `/research/sync` | Synchronous research (blocks until complete, 15-90s) |
+| `POST` | `/research` | Async research (returns `task_id`) |
+| `GET` | `/research/{task_id}` | Poll async result |
 
-```
-"{company} company profile {industry}"
-"{company} pricing {industry}"
-"{company} competitors market share"
-"{company} funding headquarters"
+**Use `/research/sync`** for the orchestrator — it blocks until the pipeline completes and the orchestrator needs the results before responding to the UI.
+
+### WebHunter Request Format
+
+```json
+{
+  "query": "Fragante company profile Fragrance",
+  "max_results": 8,
+  "max_pages": 5,
+  "variants": ["Fragante pricing", "Fragante competitors"],
+  "region": "wt-wt",
+  "timeout_ms": 30000
+}
 ```
 
 ### WebHunter Response Format
@@ -169,6 +182,17 @@ For each unknown company, run these searches (pick the best 2-3 based on context
     }
   ]
 }
+```
+
+### Search Query Templates
+
+For each unknown company, run these searches (pick the best 2-3 based on context):
+
+```
+"{company} company profile {industry}"
+"{company} pricing {industry}"
+"{company} competitors market share"
+"{company} funding headquarters"
 ```
 
 Keep the top 5 results per entity. Deduplicate by domain.

@@ -104,14 +104,38 @@ docker rm -f competitorengine llmping webhunter
 | `SERVICE_PORT`    | no       | 8001    | Must match the published port.          |
 | `LOG_LEVEL`       | no       | INFO    | DEBUG / INFO / WARNING / ERROR.          |
 
+## WebHunter API Reference
+
+WebHunter exposes these endpoints (the orchestrator uses `/research/sync`):
+
+| Method | Path | Purpose | Body |
+|--------|------|---------|------|
+| `GET` | `/health` | Health check | — |
+| `POST` | `/research/sync` | Synchronous research (blocks 15-90s) | `{ query, max_results?, max_pages?, variants?, region?, timeout_ms? }` |
+| `POST` | `/research` | Async research (returns `task_id`) | same |
+| `GET` | `/research/{task_id}` | Poll async result | — |
+
+> **Important:** There is no `/api/v1/scrape` endpoint. The orchestrator must
+> use `/research/sync` for synchronous web searches.
+
+Example:
+```bash
+curl -X POST http://localhost:8765/research/sync \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Fragante company profile Fragrance", "max_results": 8}'
+```
+
 ## Troubleshooting
 
 **Container keeps restarting with `RuntimeError: LLMPING_URL is not set`**
 You forgot `-e LLMPING_URL=...` (and/or `WEBHUNTER_URL=...`). Pass both.
 
 **`curl http://localhost:8765/` returns 404**
-That's expected if WebHunter doesn't expose a root route. Confirm via
-`docker logs webhunter` and the actual API path (e.g. `/search`, `/entities`).
+That's expected — WebHunter doesn't expose a root route. Use `/health` instead.
+
+**Orchestrator gets 404 from WebHunter**
+The orchestrator is calling `/api/v1/scrape` which doesn't exist. Update the
+orchestrator's WebHunter client to use `/research/sync`.
 
 **Orchestrator can't reach `host.docker.internal` (Linux)**
 Use the `--add-host=host.docker.internal:host-gateway` flag shown above, or run
