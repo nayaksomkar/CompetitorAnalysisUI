@@ -17,6 +17,7 @@ import type {
   ChatAsset,
 } from '../types';
 import { samples, type SampleId } from '../data';
+import { getActiveUrl } from '../components/EndpointSettings';
 
 export interface AskOptions {
   prompt: string;
@@ -210,7 +211,8 @@ const mockApi: ApiClient = {
 };
 
 // LLM Ping microservice for AI chat responses
-const LLMPING_URL = 'https://llmping.onrender.com';
+// Uses the active endpoint from settings (configured in the Endpoint Settings modal).
+const getLlmPingUrl = () => getActiveUrl('llmping').replace(/\/+$/, '');
 
 class LlmPingApi implements ApiClient {
   async bootstrap(profile: BusinessProfile, sampleId: SampleId): Promise<AnalysisData> {
@@ -222,17 +224,19 @@ class LlmPingApi implements ApiClient {
 
   async ask({ prompt, context }: AskOptions): Promise<AskResult> {
   const data = context ?? samples.perfume;
+  const llmpingUrl = getLlmPingUrl();
 
   try {
-  // Call LLM Ping microservice
-  const response = await fetch(`${LLMPING_URL}/chat`, {
+  // Call LLM Ping microservice with both common body shapes (`query` and `message`)
+  // so we don't depend on a specific payload format.
+  const response = await fetch(`${llmpingUrl}/chat`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ query: prompt }),
+  body: JSON.stringify({ query: prompt, message: prompt, prompt }),
   });
 
   if (!response.ok) {
-  throw new Error(`LLM Ping failed: ${response.status}`);
+  throw new Error(`LLM Ping returned ${response.status}`);
   }
 
   const result = await response.json();
