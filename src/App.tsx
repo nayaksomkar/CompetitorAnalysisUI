@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Questionnaire } from './components/Questionnaire';
 import { ChatView } from './components/ChatView';
 import { TabContent } from './views/TabViews';
@@ -20,6 +20,19 @@ export default function App() {
   const [thinking, setThinking] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Persist chat history to sessionStorage so the orchestrator can resolve
+  // pronouns ("it", "that one", "compare them") across turns.
+  useEffect(() => {
+    try {
+      const compact = messages
+        .filter((m) => m.text)
+        .map((m) => ({ role: m.role, text: m.text ?? '' }));
+      sessionStorage.setItem('competitor_analysis_chat_history', JSON.stringify(compact));
+    } catch {
+      /* ignore quota / SSR */
+    }
+  }, [messages]);
 
   const handleSubmit = async (p: BusinessProfile, s: SampleId) => {
   setProfile(p);

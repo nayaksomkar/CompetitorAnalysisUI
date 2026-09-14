@@ -314,7 +314,9 @@ class OrchestratorApi implements ApiClient {
     const data = context ?? samples.perfume;
     const baseUrl = this.getBaseUrl();
 
-    // Build context_update from the current analysis
+    // Build context_update from the current analysis, including the full
+    // competitor/pricing/insights data so the orchestrator can answer
+    // questions about specific competitors and prices without asking for more.
     const contextUpdate: ContextUpdate = {
       version: 1,
       business: {
@@ -322,6 +324,7 @@ class OrchestratorApi implements ApiClient {
         industry: data.profile.industry,
         pricing: data.profile.pricing,
         model: data.profile.businessModel,
+        idea: data.profile.idea,
       },
       entities: {
         competitors: data.competitors.map((c) => c.id),
@@ -339,6 +342,34 @@ class OrchestratorApi implements ApiClient {
     // Classify intent from the prompt
     const intent = this.classifyIntent(prompt);
 
+    // Build a compact snapshot of the in-context analysis so the orchestrator
+    // can answer questions about pricing, competitors, SWOT, etc. without
+    // having to ask the user for details they already provided.
+    const currentAnalysis = {
+      business: {
+        name: data.profile.businessName,
+        industry: data.profile.industry,
+        pricing: data.profile.pricing,
+        model: data.profile.businessModel,
+        idea: data.profile.idea,
+      },
+      competitors: data.competitors.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        marketShare: c.marketShare,
+        growthRate: c.growthRate,
+        pricingTier: c.pricingTier,
+        marketPosition: c.marketPosition,
+        strengths: c.strengths,
+        weaknesses: c.weaknesses,
+      })),
+      pricingTiers: data.pricingTiers,
+      swot: data.swot,
+      insights: data.insights?.slice(0, 3),
+      marketGaps: data.marketGaps?.slice(0, 3),
+    };
+
     let result: OrchestratorResponse | null = null;
     let fetchError: string | null = null;
 
@@ -348,6 +379,17 @@ class OrchestratorApi implements ApiClient {
       // Give it 100s before falling back to local data so the user isn't stuck.
       const timeoutId = setTimeout(() => controller.abort(), 100000);
       try {
+        // Pull recent chat history from sessionStorage so the orchestrator
+        // can resolve pronouns ("it", "that one", "compare them") across turns.
+        let chatHistory: { role: 'user' | 'assistant'; text: string }[] = [];
+        try {
+          const raw = sessionStorage.getItem('competitor_analysis_chat_history');
+          if (raw) chatHistory = JSON.parse(raw);
+        } catch {
+          /* ignore */
+        }
+        const recentHistory = chatHistory.slice(-6);
+
         const response = await fetch(`${baseUrl}/api/v1/parser/execute`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -357,6 +399,13 @@ class OrchestratorApi implements ApiClient {
               message: prompt,
               session_id: `ui-${Date.now()}`,
               context_update: contextUpdate,
+              current_analysis: currentAnalysis,
+              chat_history: recentHistory,
+              form_input: {
+                business_name: data.profile.businessName,
+                idea: data.profile.idea,
+                industry: data.profile.industry,
+              },
             },
           }),
           signal: controller.signal,

@@ -199,6 +199,7 @@ export interface ContextUpdate {
     industry: string;
     pricing?: string;
     model?: string;
+    idea?: string;
   };
   entities: {
     competitors: string[];
