@@ -55,6 +55,12 @@ export default function App() {
   setProfile(null); setSampleId(null); setData(null); setMessages([]); setTab('chat');
   };
 
+  const hardReset = () => {
+  localStorage.clear();
+  sessionStorage.clear();
+  window.location.reload();
+  };
+
   const handleTabChange = (t: TabKey) => {
   setTab(t);
   setSidebarOpen(false);
@@ -81,6 +87,7 @@ export default function App() {
   activeTab={tab}
   onTabChange={handleTabChange}
   onSwitch={reset}
+  onHardReset={hardReset}
   isOpen={sidebarOpen}
   onClose={() => setSidebarOpen(false)}
   onOpenSettings={() => setSettingsOpen(true)}
@@ -156,13 +163,14 @@ export default function App() {
 }
 
 function Sidebar({
-  profile, sampleId, activeTab, onTabChange, onSwitch, isOpen, onClose, onOpenSettings,
+  profile, sampleId, activeTab, onTabChange, onSwitch, onHardReset, isOpen, onClose, onOpenSettings,
 }: {
   profile: BusinessProfile;
   sampleId: SampleId;
   activeTab: TabKey;
   onTabChange: (t: TabKey) => void;
   onSwitch: () => void;
+  onHardReset: () => void;
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
@@ -238,9 +246,14 @@ function Sidebar({
   <div className="rounded-xl bg-white border border-ink-100 p-3">
   <p className="text-xs text-ink-500">Sample analysis</p>
   <p className="text-sm font-medium text-ink-900 mt-0.5">{meta?.label}</p>
-  <button onClick={onSwitch} className="mt-2 text-xs text-ink-600 hover:text-ink-900 inline-flex items-center gap-1">
-  <Icon.Refresh className="w-3 h-3" /> Switch analysis
+  <div className="flex gap-2 mt-2">
+  <button onClick={onSwitch} className="text-xs text-ink-600 hover:text-ink-900 inline-flex items-center gap-1">
+  <Icon.Refresh className="w-3 h-3" /> Switch
   </button>
+  <button onClick={onHardReset} className="text-xs text-rose-500 hover:text-rose-700 inline-flex items-center gap-1">
+  <Icon.Trash className="w-3 h-3" /> Hard Reset
+  </button>
+  </div>
   </div>
   </div>
   </aside>
