@@ -339,58 +339,69 @@ class OrchestratorApi implements ApiClient {
     // Classify intent from the prompt
     const intent = this.classifyIntent(prompt);
 
-    const response = await fetch(`${baseUrl}/api/v1/parser/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        parser_input: {
-          intent,
-          message: prompt,
-          session_id: `ui-${Date.now()}`,
-          context_update: contextUpdate,
-        },
-      }),
-    });
+    let result: OrchestratorResponse | null = null;
+    let fetchError: string | null = null;
 
-    if (!response.ok) {
-      throw new Error(`Orchestrator failed: ${response.status}`);
+    try {
+      const response = await fetch(`${baseUrl}/api/v1/parser/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parser_input: {
+            intent,
+            message: prompt,
+            session_id: `ui-${Date.now()}`,
+            context_update: contextUpdate,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        fetchError = `Orchestrator returned ${response.status}${errBody ? `: ${errBody.slice(0, 200)}` : ''}`;
+      } else {
+        result = await response.json();
+      }
+    } catch (e) {
+      fetchError = e instanceof Error ? e.message : 'Network error reaching orchestrator';
     }
-
-    const result: OrchestratorResponse = await response.json();
 
     // Convert orchestrator response to AskResult
     const assets: ChatAsset[] = [];
 
-    // If there's an answer block, convert it to assets
-    if (result.answer) {
-      if (result.answer.competitors) {
-        for (const comp of result.answer.competitors) {
-          assets.push({ kind: 'lookup-card', data: comp });
+    if (result) {
+      if (result.answer) {
+        if (result.answer.competitors) {
+          for (const comp of result.answer.competitors) {
+            assets.push({ kind: 'lookup-card', data: comp });
+          }
+        }
+        if (result.answer.comparedTo && result.answer.comparedTo.length > 0) {
+          assets.push({
+            kind: 'lookup-comparison',
+            data: {
+              title: 'Comparison',
+              competitors: result.answer.comparedTo,
+            },
+          });
         }
       }
-      if (result.answer.comparedTo && result.answer.comparedTo.length > 0) {
-        assets.push({
-          kind: 'lookup-comparison',
-          data: {
-            title: 'Comparison',
-            competitors: result.answer.comparedTo,
-          },
-        });
+
+      if (result.data?.competitors.length) {
+        // use existing data
       }
+
+      const text =
+        result.answer?.summary ??
+        result.error ??
+        (fetchError ? `Backend unavailable — ${fetchError}` : 'No response from orchestrator');
+
+      return { text, assets };
     }
 
-    // If there's data (bootstrap/refine), use it
-    if (result.data) {
-      // Merge any new competitors from the response
-      if (result.data.competitors.length > 0) {
-        // For now, just use the existing data
-      }
-    }
-
-    return {
-      text: result.answer?.summary ?? result.error ?? 'No response from orchestrator',
-      assets,
-    };
+    // Fall back to local build when orchestrator is unreachable so the UI stays usable
+    console.warn('Orchestrator unavailable, using local fallback:', fetchError);
+    return buildAskResult(prompt, data);
   }
 
   async regenerate({ section, data }: { section: string; data: AnalysisData }): Promise<ChatAsset[]> {
