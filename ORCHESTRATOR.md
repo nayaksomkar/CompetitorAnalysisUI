@@ -2,6 +2,8 @@
 
 This document describes how the orchestrator (CompetitorEngine), the parser contract, and Docker-hosted services fit together so the UI team can format requests correctly and consume responses reliably.
 
+The orchestrator is the **brain** of the system. It owns all routing logic — what to fetch, what to search, what to skip, what to answer. The UI is a thin presentation layer that sends intent and renders what comes back.
+
 ---
 
 ## 1. System Overview
@@ -13,117 +15,56 @@ This document describes how the orchestrator (CompetitorEngine), the parser cont
 │  - Holds context   │
 │  - Sends requests  │
 └─────────┬──────────┘
-          │  HTTP POST
-          │  (parser-formatted input)
+          │  HTTP POST  /api/v1/parser/execute
+          │  { parser_input: { intent, ... } }
           ▼
 ┌─────────────────────────────────────────────────────────┐
 │              Orchestrator (Docker Container)            │
 │  CompetitorEngine — FastAPI service (port 8001)         │
 │                                                         │
 │  ┌──────────────┐    ┌──────────────┐    ┌───────────┐ │
-│  │  Parser API  │───▶│ Orchestrator │───▶│ Validators│ │
-│  │  /parser/    │    │   .execute() │    │  & Retry  │ │
-│  │  execute     │    │              │    │           │ │
-│  └──────────────┘    └──────┬───────┘    └───────────┘ │
-│                            │                            │
-│            ┌───────────────┼───────────────┐            │
-│            ▼               ▼               ▼            │
-│      ┌──────────┐   ┌──────────┐   ┌──────────┐         │
-│      │ WebHunter│   │  LLMPing │   │  Cache   │         │
-│      └────┬─────┘   └────┬─────┘   └──────────┘         │
-└───────────┼──────────────┼─────────────────────────────┘
-            │              │
-            ▼              ▼
-┌────────────────┐  ┌─────────────────┐
-│  WebHunter     │  │  LLMPing        │
-│  (research)    │  │  (reasoning)    │
-│  port 8000     │  │  port 8002      │
-└────────────────┘  └─────────────────┘
+│  │  Intent      │───▶│  Planner     │───▶│ Executor  │ │
+│  │  Classifier  │    │  (what steps │    │ (calls    │ │
+│  │              │    │   to run)    │    │  services)│ │
+│  └──────────────┘    └──────┬───────┘    └─────┬─────┘ │
+│                            │                  │       │
+│                            │                  │       │
+│                  ┌─────────┼──────────┐       │       │
+│                  ▼         ▼          ▼       ▼       │
+│              [WebHunter] [LLMPing] [Cache] [Validator]│
+│              (search)    (reason)  (memo)  (sanity)  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-All three services run in **separate Docker containers**. The orchestrator is a stateless backend — it never touches the UI directly.
+All three services run in **separate Docker containers**. The orchestrator is stateless; the UI keeps session context.
 
 ---
 
 ## 2. Docker Architecture (Localhost)
 
-### 2.1 Container Topology
+See `DOCKER.md` for the canonical port mapping. Quick reference:
 
-| Container | Port | Role | Environment Variables |
-|-----------|------|------|----------------------|
-| `competitor-orchestrator` | 8001 | Orchestrator (this service) | `LLMPING_URL`, `WEBHUNTER_URL` |
-| `webhunter` | 8000 | External research | — |
-| `llmping` | 8002 | LLM reasoning | — |
+| Container            | Host port | Container port | Role                    |
+|----------------------|-----------|----------------|-------------------------|
+| `competitorengine`   | **8001**  | 8001           | Orchestrator (this svc) |
+| `llmping`            | **8000**  | 8000           | LLM analysis            |
+| `webhunter`          | **8765**  | 8000           | Web search / harvesting |
 
-### 2.2 Docker Compose Example
-
-```yaml
-version: "3.9"
-services:
-  llmping:
-    build: ./llmping
-    container_name: llmping
-    ports:
-      - "8002:8002"
-
-  webhunter:
-    build: ./webhunter
-    container_name: webhunter
-    ports:
-      - "8000:8000"
-
-  orchestrator:
-    build: .
-    container_name: competitor-orchestrator
-    ports:
-      - "8001:8001"
-    environment:
-      - LLMPING_URL=http://llmping:8002
-      - WEBHUNTER_URL=http://webhunter:8000
-    depends_on:
-      - llmping
-      - webhunter
-```
-
-### 2.3 Running Locally (Docker)
-
-```bash
-# Build and start all three containers
-docker compose up --build
-
-# Or run individually:
-docker build -t competitor-orchestrator .
-docker run -d \
-  -p 8001:8001 \
-  -e LLMPING_URL=http://localhost:8002 \
-  -e WEBHUNTER_URL=http://localhost:8000 \
-  competitor-orchestrator
-```
-
-### 2.4 Running Without Docker (Development)
-
-```bash
-uv venv
-source .venv/bin/activate
-uv pip install -r requirements.txt
-
-export LLMPING_URL=http://localhost:8002
-export WEBHUNTER_URL=http://localhost:8000
-
-uvicorn app.main:app --reload --port 8001
-```
+The orchestrator **refuses to start** without `LLMPING_URL` and `WEBHUNTER_URL` set.
 
 ---
 
-## 3. API Endpoints
+## 3. The Orchestrator Decides Everything
 
-The orchestrator exposes **three endpoints**. The UI should use `/api/v1/parser/execute` for all new flows.
+The UI does **not** decide what to search, what to ask, or what to skip. It sends an `intent` and a `message`. The orchestrator:
 
-| Endpoint | Purpose | When to Use |
-|----------|---------|-------------|
-| `POST /api/v1/analyze` | Legacy full-analysis endpoint | Legacy UI flows only |
-| `POST /api/v1/chat` | Chat follow-up with context | Conversation only |
-| `POST /api/v1/parser/execute` | **Parser-driven flow** | **All new UI flows** |
+1. **Classifies** the intent (`bootstrap`, `question`, `refine`, `compare`, `explain`, `regenerate`, `follow-up`).
+2. **Plans** the work — which services to call, in what order, with what queries.
+3. **Executes** the plan, gathering context as needed.
+4. **Validates** the output (entity-level, never hallucinated fillers).
+5. **Returns** a typed response the UI can render.
+
+If the user asks about a company the UI has never heard of, the orchestrator **searches the web via WebHunter** and **asks LLMPing to synthesize** an answer. The UI does not need to know whether a company came from session context, the bundled dataset, or a fresh web search — it just renders the response.
 
 ---
 
@@ -136,158 +77,210 @@ The orchestrator exposes **three endpoints**. The UI should use `/api/v1/parser/
 ```json
 {
   "parser_input": {
-    "intent": "bootstrap",
-    "entities": {
-      "business_names": ["MyStartup"],
-      "competitor_names": ["CompetitorA", "CompetitorB"],
-      "industries": ["SaaS"],
-      "geographic_mentions": ["US"],
-      "product_names": ["Dashboard"]
-    },
-    "facts": {
-      "product_type": "AI analytics",
-      "target_market": "SMBs",
-      "pricing_tier": "Premium"
-    },
-    "constraints": ["US market only"],
-    "requested_operations": ["extract", "infer", "calculate", "normalize"],
-    "missing_information": ["founding date", "employee count"],
-    "requested_count": 3,
-    "form_input": {
-      "business_name": "MyStartup",
-      "idea": "AI analytics platform",
-      "industry": "SaaS",
-      "products_services": ["Dashboard"],
-      "target_customers": "SMBs",
-      "geography": "US",
-      "pricing": "$49/month",
-      "business_model": "Subscription",
-      "competitors": ["CompetitorA", "CompetitorB"],
-      "differentiators": "AI-first approach",
-      "research_goals": ["competitor_research"],
-      "user_query": "How to compete?"
-    }
+    "intent": "question",
+    "message": "Tell me about Fragante as a competitor in this list",
+    "session_id": "abc-123",
+    "current_analysis": { /* last full response, may be null */ },
+    "context_update": { /* last context_update, may be null */ },
+    "form_input": { /* last form_input from bootstrap, may be null */ }
   }
 }
 ```
 
+Minimal shapes per intent:
+
+```jsonc
+// bootstrap (first run, no context)
+{ "parser_input": { "intent": "bootstrap", "requested_count": 3, "form_input": { /* full form */ } } }
+
+// question / follow-up
+{ "parser_input": { "intent": "question", "message": "...", "session_id": "...", "context_update": { /* last */ } } }
+
+// refine
+{ "parser_input": { "intent": "refine", "message": "add Fragante as a competitor", "context_update": { /* last */ }, "form_input": { /* last */ } } }
+
+// compare / explain
+{ "parser_input": { "intent": "compare", "message": "compare Forest Essentials vs Fragante", "context_update": { /* last */ } } }
+
+// regenerate
+{ "parser_input": { "intent": "regenerate", "form_input": { /* same as last bootstrap */ }, "context_update": { /* last */ } } }
+```
+
 ### 4.2 Field Reference
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `intent` | string | Yes | One of: `bootstrap`, `question`, `refine`, `compare`, `explain`, `regenerate`, `follow-up` |
-| `entities` | object | No | Extracted entities (competitor_names, industries, etc.) |
-| `facts` | object | No | Extracted facts (product_type, target_market, etc.) |
-| `constraints` | string[] | No | Active constraints from context |
-| `requested_operations` | string[] | No | Operations to perform |
-| `missing_information` | string[] | No | Fields the UI couldn't extract |
-| `requested_count` | int | No | Max competitors (1-3, default 3) |
-| `form_input` | object | Yes* | Required for bootstrap/refine/regenerate |
-| `session_id` | string | No | For chat follow-ups |
-| `message` | string | No | For question/compare/explain intents |
-| `current_analysis` | object | No | Previous analysis for follow-ups |
+| Field              | Type     | Required         | Description                                          |
+|--------------------|----------|------------------|------------------------------------------------------|
+| `intent`           | string   | Yes              | One of: `bootstrap`, `question`, `refine`, `compare`, `explain`, `regenerate`, `follow-up` |
+| `message`          | string   | For question/compare/explain/refine | The user's natural-language request |
+| `session_id`       | string   | For follow-ups   | Stable session identifier (UI-generated UUID)        |
+| `context_update`   | object   | Recommended      | Last `context_update` from a previous response       |
+| `current_analysis` | object   | Optional         | Last full `data` payload (for rich follow-ups)       |
+| `form_input`       | object   | For bootstrap/refine/regenerate | The bootstrap questionnaire payload |
+| `requested_count`  | int      | Optional         | Max competitors (1-3, default 3)                     |
 
 ### 4.3 Intent Routing
 
-The orchestrator routes based on `intent`:
+The orchestrator owns the routing. The UI just labels what it thinks the user wants.
 
-| Intent | Behavior |
-|--------|----------|
-| `bootstrap` | Full analysis: research → reasoning → validation |
-| `question` | Answer a question using existing context or fresh research |
-| `follow-up` | Same as question |
-| `refine` | Modify existing data (add/remove competitor) |
-| `compare` | Generate side-by-side comparison |
-| `explain` | Explain a specific data point |
-| `regenerate` | Re-run full analysis with same input |
+| Intent         | Orchestrator Behavior |
+|----------------|----------------------|
+| `bootstrap`    | Full analysis: research → reasoning → validation. Builds competitor set, SWOT, market gaps, charts. |
+| `question`     | Classify the question. If it names a company not in the current set → **search WebHunter**, then **ask LLMPing** to synthesize. If it references existing context → answer from context. |
+| `follow-up`    | Same as `question`. Alias kept for clarity in the UI. |
+| `refine`       | Mutate the dataset (add/remove/change competitor). If the user names a new company, search it first; never invent data. |
+| `compare`      | Generate side-by-side comparison for two or more named entities. Look each up via WebHunter if not in context. |
+| `explain`      | Drill into a single data point from the previous response. |
+| `regenerate`   | Re-run bootstrap with the same `form_input`. |
 
 ---
 
-## 5. Response Format
+## 5. The "Ask About Any Company" Flow
 
-### 5.1 Success Response
+This is the flow that handles queries like *"tell me about Fragante"*. The orchestrator runs it for `question`, `compare`, `refine`, or `explain` intents when the named company is not already in context.
+
+### 5.1 Planner Steps
+
+1. **Resolve entities from the message**
+   - Extract every proper-noun company / brand mention.
+   - Normalize (lowercase, strip legal suffixes: "Inc", "Ltd", "Pvt", "India", etc.) → slug.
+   - Check against `context_update.entities.competitors`. Each entity is either `in_context` or `needs_lookup`.
+
+2. **For each `needs_lookup` entity, run a WebHunter search**
+   - Query templates (orchestrator chooses the best one based on the user's industry context):
+     - `"{company} company profile {industry}"`
+     - `"{company} pricing {industry}"`
+     - `"{company} competitors market share"`
+     - `"{company} funding headquarters"`
+   - WebHunter returns up to N=8 sources with `{title, url, snippet, publisher, date}`.
+   - Keep the top 5 by relevance; deduplicate by domain.
+
+3. **Ask LLMPing to extract a profile**
+   - Input: `{ company_name, industry, sources[] }`.
+   - Output schema (strict):
+     ```json
+     {
+       "name": "Fragante",
+       "description": "1-2 sentence summary",
+       "pricingTier": "Premium | Mid-range | Budget | Ultra-Premium | unknown",
+       "marketPosition": "Leader | Challenger | Niche | Emerging | unknown",
+       "marketShare": null,
+       "growthRate": null,
+       "funding": "string or null",
+       "founded": "string or null",
+       "hq": "string or null",
+       "strengths": ["up to 3"],
+       "weaknesses": ["up to 3"],
+       "confidence": 0-100,
+       "sourceCount": 5
+     }
+     ```
+   - If `confidence < 40` or `sourceCount < 2`, the orchestrator marks the entity `partial` and includes it in `missing_data`.
+
+4. **Merge into the response**
+   - `in_context` entities use the cached profile from the previous analysis.
+   - `needs_lookup` entities use the freshly extracted profile and are flagged `source: "web"`.
+   - The full set is returned in `data.competitors[]` (existing) **or** `data.answer.competitors[]` (new, for one-off questions — see 5.2).
+
+5. **Write back into context_update**
+   - Add the new entity slug to `context_update.entities.competitors` (max 3 active).
+   - If the cap is hit, the oldest `needs_lookup` entity is dropped and reported in `evicted_entities[]`.
+
+### 5.2 Response Shape for Lookup Questions
+
+When the intent is `question` / `compare` / `explain` and lookup was required, the response includes an `answer` block alongside (not instead of) the normal `data` block:
+
+```jsonc
+{
+  "intent": "question",
+  "status": "success" | "partial",
+  "answer": {
+    "summary": "Fragante is a mid-range Indian fragrance brand launched in 2019...",
+    "competitors": [
+      {
+        "id": "fragante",
+        "name": "Fragante",
+        "source": "web",
+        "lookupConfidence": 78,
+        "profile": {
+          "description": "...",
+          "pricingTier": "Mid-range",
+          "marketPosition": "Emerging",
+          "strengths": ["..."],
+          "weaknesses": ["..."],
+          "funding": null,
+          "founded": "2019",
+          "hq": "Mumbai, India"
+        },
+        "sources": [
+          { "id": "fragante-s1", "title": "Fragante launches...", "publisher": "...", "url": "...", "date": "..." }
+        ]
+      }
+    ],
+    "comparedTo": [
+      // when intent === "compare", the in-context competitors included in the side-by-side
+    ]
+  },
+  "data": { /* existing analysis, unchanged for question intents */ },
+  "missing_data": [],
+  "context_update": { /* updated */ },
+  "evicted_entities": []
+}
+```
+
+For `compare` intents, `answer.comparedTo[]` mirrors the same shape (so the UI can render a 2-column or N-column table).
+
+For `explain` intents, `answer` carries `{ question, explanation, evidence[], sources[] }` instead of a competitor profile.
+
+### 5.3 What the UI Sends
+
+The UI does **not** pre-classify entities or trigger lookups. It just sends:
+
+```jsonc
+{
+  "parser_input": {
+    "intent": "question",
+    "message": "tell me about Fragante as compared to other relevant companies in this list",
+    "session_id": "<uuid>",
+    "context_update": <from sessionStorage>
+  }
+}
+```
+
+The orchestrator reads `message`, extracts "Fragante", sees it's not in `context_update.entities.competitors`, runs the WebHunter search, asks LLMPing, and returns the merged answer.
+
+### 5.4 Follow-Up Questions
+
+A follow-up ("and how does it compare to Jo Malone?") is sent the same way — the orchestrator uses `context_update` to resolve pronouns ("it", "the cheaper one", "the leader") per §8.4 of the previous version. If the follow-up introduces a new company, that company is looked up the same way.
+
+---
+
+## 6. Response Format
+
+### 6.1 Success Response
 
 ```json
 {
   "intent": "bootstrap",
   "status": "success",
   "data": {
-    "business_summary": "MyStartup is an AI analytics platform...",
-    "profile": {
-      "business_name": "MyStartup",
-      "idea": "AI analytics platform",
-      "industry": "SaaS",
-      "products_services": ["Dashboard"],
-      "target_customers": "SMBs",
-      "geography": "US",
-      "pricing": "$49/month",
-      "business_model": "Subscription",
-      "competitors": ["CompetitorA", "CompetitorB"],
-      "differentiators": "AI-first approach",
-      "research_goals": ["competitor_research"],
-      "user_query": "How to compete?",
-      "summary": "AI analytics for SMBs"
-    },
-    "executive_summary": "Strong opportunity in SMB analytics.",
+    "business_summary": "...",
+    "profile": { /* BusinessProfile */ },
+    "executive_summary": "...",
     "market_info": { "size": "$5B", "growth": "12%" },
-    "positioning": "AI-first, affordable.",
-    "gaps": ["No mobile app"],
-    "opportunities": ["Expand to EU"],
-    "risks": ["Big competitors entering"],
-    "competitors": [
-      {
-        "name": "CompetitorA",
-        "description": "Established player",
-        "strengths": ["Brand"],
-        "weaknesses": ["Price"],
-        "pricing": "$99/mo",
-        "market_position": "Leader",
-        "source": "research",
-        "explanation": "Main rival"
-      }
-    ],
-    "swot": {
-      "strengths": [{ "point": "AI-first", "explanation": "Unique", "source": "analysis" }],
-      "weaknesses": [],
-      "opportunities": [],
-      "threats": []
-    },
+    "positioning": "...",
+    "gaps": ["..."],
+    "opportunities": ["..."],
+    "risks": ["..."],
+    "competitors": [ /* Competitor[] */ ],
+    "swot": { /* SWOT */ },
     "comparisons": [],
-    "charts": [
-      {
-        "chart_type": "bar",
-        "title": "Pricing Comparison",
-        "labels": ["MyStartup", "CompetitorA"],
-        "datasets": [{ "label": "Price", "data": [49, 99] }],
-        "explanation": "MyStartup undercuts"
-      }
-    ],
-    "metric_cards": [
-      { "label": "Market size", "value": 5000000000, "unit": "USD" }
-    ],
-    "insights": [],
-    "recommendations": [
-      {
-        "title": "Launch free tier",
-        "description": "Capture SMBs",
-        "priority": "high",
-        "rationale": "Lower CAC",
-        "explanation": "SMBs want to try before buying"
-      }
-    ],
-    "action_plan": [
-      {
-        "action": "Ship free tier",
-        "timeline": "Month 1",
-        "priority": "high",
-        "expected_outcome": "3x signups",
-        "explanation": "Removes friction"
-      }
-    ],
-    "report": "# MyStartup Analysis\n\nStrong opportunity...",
-    "sources": [
-      { "source": "https://example.com/a", "type": "web", "relevance": "" }
-    ],
+    "charts": [ /* ChartData[] */ ],
+    "metric_cards": [ /* MetricCard[] */ ],
+    "insights": [ /* InsightItem[] */ ],
+    "recommendations": [ /* Recommendation[] */ ],
+    "action_plan": [ /* ActionPlanItem[] */ ],
+    "report": "...",
+    "sources": [ /* Source[] */ ],
     "metadata": {
       "generated_at": "2026-09-10T12:00:00+00:00",
       "model_used": "llm-brain",
@@ -295,30 +288,10 @@ The orchestrator routes based on `intent`:
       "processing_time_ms": 4500
     }
   },
+  "answer": null,
   "missing_data": [],
-  "context_update": {
-    "version": 1,
-    "business": {
-      "name": "MyStartup",
-      "industry": "SaaS",
-      "pricing": "$49/month",
-      "model": "Subscription"
-    },
-    "entities": {
-      "competitors": ["competitora", "competitorb"],
-      "focus": null
-    },
-    "result_meta": {
-      "requested_count": 3,
-      "retrieved_count": 1,
-      "filters": []
-    },
-    "constraints": {
-      "included": ["AI-first approach"],
-      "excluded": []
-    },
-    "keywords": ["SaaS", "Subscription", "US", "AI-first approach"]
-  },
+  "context_update": { /* compact */ },
+  "evicted_entities": [],
   "error": null,
   "result_counts": {
     "requested": 3,
@@ -329,103 +302,72 @@ The orchestrator routes based on `intent`:
   "operations_performed": ["extract", "infer", "calculate", "normalize"],
   "entity_statuses": {
     "competitors": [
-      {
-        "id": "competitora",
-        "name": "CompetitorA",
-        "status": "complete",
-        "missing_fields": []
-      }
+      { "id": "fragante", "name": "Fragante", "status": "complete", "missing_fields": [], "source": "web", "lookupConfidence": 78 }
     ]
   }
 }
 ```
 
-### 5.2 Status Values
+### 6.2 Status Values
 
-| Status | Meaning | UI Action |
-|--------|---------|-----------|
-| `success` | All data retrieved successfully | Render normally |
-| `partial` | Some data missing or failed | Render valid data, show warnings |
-| `error` | Critical failure | Show error state, preserve any valid data |
+| Status    | Meaning                                          | UI Action                              |
+|-----------|--------------------------------------------------|----------------------------------------|
+| `success` | All data retrieved successfully                  | Render normally                        |
+| `partial` | Some data missing or failed                      | Render valid data, show warnings       |
+| `error`   | Critical failure                                 | Show error state, preserve any valid data |
 
-### 5.3 Entity Status Values
+### 6.3 Entity Status Values
 
-Each competitor (and other entities) has a per-entity status:
+| Status     | Meaning                              | UI Action                              |
+|------------|--------------------------------------|----------------------------------------|
+| `complete` | All required fields present          | Render normally                        |
+| `partial`  | Some optional fields missing         | Render with "—" for missing fields     |
+| `failed`   | Entity could not be generated        | Skip entity, show in `missing_data`    |
+| `loading`  | Lookup in flight (long WebHunter run)| Show skeleton card                     |
 
-| Status | Meaning | UI Action |
-|--------|---------|-----------|
-| `complete` | All required fields present | Render normally |
-| `partial` | Some optional fields missing | Render with "—" for missing fields |
-| `failed` | Entity could not be generated | Skip entity, show in missing_data |
+For web-looked-up entities (`source: "web"`), include `lookupConfidence` (0-100) in the entity status. The UI should render a subtle badge when `lookupConfidence < 60`.
 
 ---
 
-## 6. Fault Tolerance & Error Handling
+## 7. Fault Tolerance & Error Handling
 
-### 6.1 Retry Policy
+### 7.1 Retry Policy
 
-The orchestrator retries failed operations:
+| Operation                 | Max Retries | Delay | Fallback                  |
+|---------------------------|-------------|-------|---------------------------|
+| Bootstrap (full analysis) | 2           | 1s    | Return partial data       |
+| Chat question             | 1           | 500ms | Try WebHunter, then partial|
+| WebHunter search          | 2           | 1s    | Mark entity `failed`      |
+| LLMPing extraction        | 2           | 500ms | Use raw sources only      |
+| Single entity generation  | 1           | 500ms | Skip entity               |
 
-| Operation | Max Retries | Delay | Fallback |
-|-----------|-------------|-------|----------|
-| Bootstrap (full analysis) | 2 | 1s | Return partial data |
-| Chat question | 0 | — | Return error |
-| Single entity generation | 1 | 500ms | Skip entity |
-
-### 6.2 Failure Isolation
-
-**One failure does NOT break everything:**
+### 7.2 Failure Isolation
 
 ```
-Competitor A ✓ → Render
-Competitor B ✓ → Render
-Competitor C ✗ → Skip, report in missing_data
-Competitor D ✓ → Render
+Forest Essentials ✓ → Render
+Kama Ayurveda    ✓ → Render
+Fragante         ✗ (WebHunter timeout) → Skip, report in missing_data
+Jo Malone        ✓ → Render
 ```
 
-### 6.3 Partial Results
+The orchestrator **never fabricates** entities to fill the requested count.
 
-If some entities fail, the orchestrator returns only valid data:
+### 7.3 Partial Results
+
+If lookup for Fragante times out twice, the orchestrator returns:
 
 ```json
 {
   "status": "partial",
-  "data": {
-    "competitors": [
-      { "name": "Competitor A", "status": "complete" },
-      { "name": "Competitor B", "status": "complete" }
-    ]
-  },
+  "data": { "competitors": [/* the ones that worked */] },
+  "answer": null,
   "missing_data": [
-    {
-      "field": "competitors[2]",
-      "reason": "Failed to generate profile for Competitor C",
-      "severity": "warning"
-    }
+    { "field": "competitors[fragante]", "reason": "WebHunter timeout after 2 attempts", "severity": "warning" }
   ]
 }
 ```
 
-### 6.4 No Hallucination
-
-The orchestrator **never fabricates missing results** to satisfy the requested count. If 1 competitor is available, it returns 1 — not 3.
-
----
-
-## 7. Dynamic Company Limit
-
-**Maximum 3 competitors for dynamically generated data.**
-
-| Requested | Available | Returned |
-|-----------|-----------|----------|
-| 3 | 3 | 3 |
-| 3 | 2 | 2 |
-| 3 | 1 | 1 |
-| 3 | 0 | 0 (empty/error) |
-| 2 | 2 | 2 |
-| 1 | 1 | 1 |
-
-The UI must handle 0-3 competitors dynamically. The `result_counts` field tells the UI exactly what was retrieved and validated.
+The UI renders valid competitors and shows the warning.
 
 ---
 
@@ -446,47 +388,50 @@ sessionStorage.setItem(CONTEXT_KEY, JSON.stringify(response.context_update));
 {
   "version": 1,
   "business": {
-    "name": "MyStartup",
-    "industry": "SaaS",
-    "pricing": "$49/month",
-    "model": "Subscription"
+    "name": "Scentra",
+    "industry": "Fragrance",
+    "pricing": "₹3,500",
+    "model": "DTC"
   },
   "entities": {
-    "competitors": ["competitora", "competitorb"],
+    "competitors": ["forest-essentials", "kama-ayurveda", "jo-malone-india", "fragante"],
     "focus": null
   },
   "result_meta": {
     "requested_count": 3,
-    "retrieved_count": 1,
+    "retrieved_count": 4,
     "filters": []
   },
   "constraints": {
-    "included": ["AI-first"],
+    "included": ["Indian premium"],
     "excluded": []
   },
-  "keywords": ["SaaS", "US", "AI-first"]
+  "keywords": ["Fragrance", "Premium", "DTC"]
 }
 ```
 
-### 8.3 What NOT to Store
+Note: `fragante` may appear here even though it was looked up via WebHunter. The next time the UI references "Fragante" or any pronoun pointing to it, the orchestrator can use the cached profile instead of searching again.
 
-- Full conversation history
-- Complete analysis data (regenerate from orchestrator)
-- Raw user messages
-- Generated report text
-- Chart data (regenerate on demand)
+### 8.3 Reference Resolution
 
-### 8.4 Reference Resolution
+| User Says                | Orchestrator Resolves To                            |
+|--------------------------|-----------------------------------------------------|
+| "it" / "that one"        | `context.entities.focus`                            |
+| "the cheaper one"        | Lowest `priceMonthly` in current entity set         |
+| "the leader"             | Competitor with `marketPosition: "Leader"`          |
+| "compare them"           | Last two entities mentioned in the session          |
+| "add X"                  | Look up X via WebHunter, add to `entities.competitors` (max 3 active + evicted) |
+| "what about Fragante?"   | If in context → use cached profile. If not → §5 lookup flow. |
 
-When user references previous context:
+### 8.4 Eviction Policy
 
-| User Says | UI Should Resolve To |
-|-----------|---------------------|
-| "it" / "that one" | `context.entities.focus` |
-| "the cheaper one" | Lowest `priceMonthly` |
-| "the leader" | Competitor with `market_position: "Leader"` |
-| "compare them" | Last two entities mentioned |
-| "add X" | Add to `context.entities.competitors` (max 3) |
+The active set is capped at **3 competitors** for dynamic data (PARSER.md §2.2). When a 4th is added via `refine`:
+
+1. The new entity is added.
+2. The oldest `in_context` entity (lowest `last_referenced_at`) is moved to `evicted_entities[]`.
+3. The evicted entity's profile is still cached under its slug for 24 hours, so a follow-up "what about Forest Essentials?" can still answer from cache without re-fetching.
+
+The eviction is reported back in `evicted_entities[]` so the UI can show a "Forest Essentials moved to history" toast.
 
 ---
 
@@ -501,41 +446,16 @@ const response = await fetch('http://localhost:8001/api/v1/parser/execute', {
   body: JSON.stringify({
     parser_input: {
       intent: 'bootstrap',
-      entities: {
-        business_names: ['MyStartup'],
-        competitor_names: ['CompetitorA'],
-        industries: ['SaaS']
-      },
-      facts: {
-        product_type: 'AI analytics',
-        target_market: 'SMBs'
-      },
-      requested_count: 3,
-      form_input: {
-        business_name: 'MyStartup',
-        idea: 'AI analytics platform',
-        industry: 'SaaS',
-        competitors: ['CompetitorA']
-      }
+      form_input: { /* full form */ },
+      requested_count: 3
     }
   })
 });
-
-const data = await response.json();
-
-if (data.status === 'success' || data.status === 'partial') {
-  // Render data.data.competitors (0-3 items)
-  // Store data.context_update in sessionStorage
-  // Show warnings from data.missing_data
-}
-
-if (data.status === 'error') {
-  // Show error message from data.error
-  // Check data.missing_data for details
-}
 ```
 
-### 9.2 Sending a Chat Follow-Up
+### 9.2 Sending a Free-Form Question
+
+This is the new flow. Same endpoint, same shape, different intent:
 
 ```javascript
 const context = JSON.parse(sessionStorage.getItem('competitor_analysis_context'));
@@ -546,28 +466,46 @@ const response = await fetch('http://localhost:8001/api/v1/parser/execute', {
   body: JSON.stringify({
     parser_input: {
       intent: 'question',
-      message: 'Who is the cheapest competitor?',
+      message: 'tell me about Fragante as compared to other relevant companies in this list',
       session_id: context.session_id,
-      current_analysis: { /* last full response */ }
+      context_update: context
     }
   })
 });
+
+const data = await response.json();
+
+if (data.answer) {
+  // Render data.answer.competitors[] as a card or table.
+  // If intent was "compare", data.answer.comparedTo[] is the second column.
+  // Show data.answer.sources[] at the bottom.
+}
+
+if (data.status === 'partial') {
+  // Show warnings from data.missing_data
+}
 ```
+
+The UI does not need to know whether `answer.competitors[0]` came from session context or a fresh WebHunter search — it just renders `source: "web" | "context"` as a small badge.
 
 ### 9.3 Handling Partial Results
 
 ```javascript
-const { status, data, missing_data, entity_statuses } = response;
+const { status, data, answer, missing_data, entity_statuses } = response;
 
-// Render valid competitors only
-data.competitors.forEach(comp => {
-  const status = entity_statuses.competitors.find(s => s.id === slugify(comp.name));
-  if (status.status !== 'failed') {
-    renderCompetitorCard(comp, status);
-  }
-});
+// Bootstrap-style render: full competitor set
+if (data?.competitors) {
+  data.competitors.forEach(comp => {
+    const ent = entity_statuses.competitors.find(s => s.id === slugify(comp.name));
+    if (ent?.status !== 'failed') renderCompetitorCard(comp, ent);
+  });
+}
 
-// Show warnings
+// Question-style render: looked-up answer
+if (answer?.competitors) {
+  answer.competitors.forEach(comp => renderLookupCard(comp));
+}
+
 if (missing_data.length > 0) {
   showWarnings(missing_data.filter(m => m.severity === 'warning'));
 }
@@ -590,23 +528,27 @@ function updateContext(response) {
 
 ## 10. Field Mapping (Orchestrator → UI)
 
-The orchestrator returns data in a structured format. Here's how each field maps to UI components:
-
-| Orchestrator Field | UI Component |
-|--------------------|--------------|
-| `data.competitors[]` | Competitor cards |
-| `data.swot` | SWOT grid |
-| `data.charts[]` | Chart visualizations |
-| `data.metric_cards[]` | KPI cards |
-| `data.recommendations[]` | Recommendation list |
-| `data.action_plan[]` | Action plan timeline |
-| `data.insights[]` | Insight cards |
-| `data.report` | Full report viewer |
-| `data.sources[]` | Sources list |
-| `entity_statuses.competitors[]` | Per-card status badges |
-| `result_counts` | Result count indicators |
-| `missing_data[]` | Warning notifications |
-| `context_update` | SessionStorage data |
+| Orchestrator Field                                | UI Component            |
+|---------------------------------------------------|-------------------------|
+| `data.competitors[]`                              | Competitor cards        |
+| `data.swot`                                       | SWOT grid               |
+| `data.charts[]`                                   | Chart visualizations    |
+| `data.metric_cards[]`                             | KPI cards               |
+| `data.recommendations[]`                          | Recommendation list     |
+| `data.action_plan[]`                              | Action plan timeline    |
+| `data.insights[]`                                 | Insight cards           |
+| `data.report`                                     | Full report viewer      |
+| `data.sources[]`                                  | Sources list            |
+| `answer.competitors[]` *(new)*                    | Lookup cards (one-off)  |
+| `answer.comparedTo[]` *(new)*                     | Comparison table cells  |
+| `answer.summary` *(new)*                          | Lookup card lead text   |
+| `answer.sources[]` *(new)*                        | Per-lookup source list  |
+| `entity_statuses.competitors[].lookupConfidence`  | "Web data" confidence badge |
+| `entity_statuses.competitors[].source`            | "from session" / "from web" badge |
+| `evicted_entities[]`                              | Eviction toast          |
+| `result_counts`                                   | Result count indicators |
+| `missing_data[]`                                  | Warning notifications   |
+| `context_update`                                  | SessionStorage data     |
 
 ---
 
@@ -614,55 +556,38 @@ The orchestrator returns data in a structured format. Here's how each field maps
 
 ### 11.1 HTTP Status Codes
 
-| Code | Meaning | UI Action |
-|------|---------|-----------|
-| 200 | Success or partial success | Parse response body for `status` field |
-| 422 | Validation error (malformed request) | Show "Invalid request format" |
-| 500 | Internal server error | Show "Service unavailable, try again" |
-| 502 | Upstream service (WebHunter/LLMPing) failed | Show "Research service down, partial data available" |
+| Code | Meaning                                       | UI Action                                       |
+|------|-----------------------------------------------|-------------------------------------------------|
+| 200  | Success or partial success                    | Parse `status` field                            |
+| 422  | Validation error (malformed request)          | Show "Invalid request format"                   |
+| 500  | Internal server error                         | Show "Service unavailable, try again"           |
+| 502  | Upstream service (WebHunter/LLMPing) failed   | Show "Research service down, partial data available" |
+| 504  | Lookup timeout (WebHunter > 10s × 2 retries)  | Show "Couldn't look up {entity}, skipping"      |
 
 ### 11.2 Structured Error Response
 
 ```json
 {
-  "intent": "bootstrap",
+  "intent": "question",
   "status": "error",
-  "data": { /* empty AnalysisResult */ },
-  "error": "Analysis failed: LLMPing timeout after 3 attempts",
+  "data": null,
+  "answer": null,
+  "error": "WebHunter unavailable: connection refused",
   "missing_data": [
-    {
-      "field": "analysis",
-      "reason": "LLMPing timeout after 3 attempts",
-      "severity": "critical"
-    }
+    { "field": "competitors[fragante]", "reason": "WebHunter connection refused", "severity": "critical" }
   ]
 }
 ```
-
-The UI should always check `response.status` before rendering. Even on error, `response.data` may contain partial data that can be rendered.
 
 ---
 
 ## 12. Performance & Cost Optimization
 
-### 12.1 Minimize LLM Calls
-
-- Use `intent: "question"` for follow-ups (no full re-analysis)
-- Store `context_update` to avoid re-extracting known data
-- Only request fresh research when explicitly needed
-
-### 12.2 Company Limit
-
-The 3-company cap reduces LLM token usage by ~25%. The UI should:
-- Not request more than 3 competitors
-- Handle 0-3 competitors dynamically
-- Use `result_counts` to show accurate counts
-
-### 12.3 Retry Avoidance
-
-The orchestrator handles retries internally. The UI should:
-- Not retry failed requests (orchestrator already retries)
-- Show error messages immediately if `status === "error"`
+- **Cache aggressively**: `context_update` carries compact profiles; a follow-up about a cached entity costs zero WebHunter calls.
+- **Lookup budget**: cap each request at 3 WebHunter searches (so one user message naming 3 new companies stays under the cap).
+- **Token budget**: pass only the top 5 sources per entity to LLMPing, not all 8.
+- **Parallelism**: when a message names multiple new entities, run their WebHunter searches in parallel.
+- **Eviction**: 24-hour TTL on evicted entities to bound memory.
 
 ---
 
@@ -676,7 +601,7 @@ curl http://localhost:8001/health
 
 Response:
 ```json
-{ "status": "ok", "service": "orchestrator", "version": "2.0.0" }
+{ "status": "ok", "service": "orchestrator", "version": "2.1.0" }
 ```
 
 ### 13.2 Quick Test Request
@@ -697,86 +622,78 @@ curl -X POST http://localhost:8001/api/v1/parser/execute \
   }'
 ```
 
-### 13.3 Verify Context Update
+### 13.3 Lookup Question Test
 
-Check that the response includes `context_update` with compact data:
-
-```json
-{
-  "context_update": {
-    "business": { "name": "TestCo", "industry": "SaaS" },
-    "entities": { "competitors": ["comp1", "comp2"] },
-    "keywords": ["SaaS", "AI"]
-  }
-}
+```bash
+curl -X POST http://localhost:8001/api/v1/parser/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parser_input": {
+      "intent": "question",
+      "message": "tell me about Fragante",
+      "session_id": "test-123",
+      "context_update": {
+        "version": 1,
+        "business": { "name": "TestCo", "industry": "Fragrance" },
+        "entities": { "competitors": [], "focus": null },
+        "result_meta": { "requested_count": 3, "retrieved_count": 0, "filters": [] },
+        "constraints": { "included": [], "excluded": [] },
+        "keywords": ["Fragrance"]
+      }
+    }
+  }'
 ```
+
+Expected: a 200 with `answer.competitors[0].name === "Fragante"`, `source: "web"`, and at least 2 sources in `answer.sources`.
+
+### 13.4 Compare Test
+
+```bash
+curl -X POST http://localhost:8001/api/v1/parser/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parser_input": {
+      "intent": "compare",
+      "message": "compare Fragante and Jo Malone India",
+      "session_id": "test-123",
+      "context_update": { /* same */ }
+    }
+  }'
+```
+
+Expected: `answer.competitors[0]` is Fragante (web), `answer.comparedTo[0]` is Jo Malone India (context), with a 2-column render in the UI.
 
 ---
 
-## 14. Migration from Legacy Endpoints
-
-If the UI currently uses `/api/v1/analyze` or `/api/v1/chat`:
+## 14. Migration Notes
 
 ### 14.1 From `/api/v1/analyze` to `/api/v1/parser/execute`
 
-**Old request:**
-```json
-{
-  "business_name": "MyStartup",
-  "idea": "AI analytics",
-  "industry": "SaaS",
-  "competitors": ["CompetitorA"]
-}
-```
+```jsonc
+// Old
+{ "business_name": "...", "idea": "...", "industry": "...", "competitors": [...] }
 
-**New request:**
-```json
-{
-  "parser_input": {
-    "intent": "bootstrap",
-    "form_input": {
-      "business_name": "MyStartup",
-      "idea": "AI analytics",
-      "industry": "SaaS",
-      "competitors": ["CompetitorA"]
-    },
-    "requested_count": 3
-  }
-}
+// New
+{ "parser_input": { "intent": "bootstrap", "form_input": { /* same fields */ }, "requested_count": 3 } }
 ```
 
 ### 14.2 From `/api/v1/chat` to `/api/v1/parser/execute`
 
-**Old request:**
-```json
-{
-  "session_id": "abc-123",
-  "message": "Tell me about CompetitorA"
-}
+```jsonc
+// Old
+{ "session_id": "abc", "message": "Tell me about CompetitorA" }
+
+// New
+{ "parser_input": { "intent": "question", "session_id": "abc", "message": "Tell me about CompetitorA", "context_update": { /* last */ } } }
 ```
 
-**New request:**
-```json
-{
-  "parser_input": {
-    "intent": "question",
-    "session_id": "abc-123",
-    "message": "Tell me about CompetitorA"
-  }
-}
-```
+### 14.3 New `answer` Block
 
-### 14.3 Response Changes
+The new `answer` field is added for any intent that produces a one-off lookup result. Bootstrap responses set `answer: null`. Question/compare/explain responses populate it.
 
-The new endpoint adds:
-- `status` field (success/partial/error)
-- `missing_data` array
-- `context_update` object
-- `result_counts` object
-- `entity_statuses` object
-- `operations_performed` array
+### 14.4 New `evicted_entities` Block
 
-The legacy endpoints will continue to work but won't include these parser-specific fields.
+Whenever a 4th entity is added to the active set, the oldest is moved to `evicted_entities[]`. The UI should show a one-line toast and offer an "undo" that re-sends the same `refine` request.
 
 ---
 
@@ -784,19 +701,20 @@ The legacy endpoints will continue to work but won't include these parser-specif
 
 **Key Points for the UI:**
 
-1. **Use `/api/v1/parser/execute`** for all new flows
-2. **Always check `status`** before rendering data
-3. **Handle 0-3 competitors dynamically** — never assume a fixed count
-4. **Store `context_update`** in sessionStorage after each response
-5. **Use `entity_statuses`** to show per-card warnings
-6. **Never retry failed requests** — orchestrator handles retries
-7. **Render partial data** when `status === "partial"`
-8. **Check `missing_data`** for warnings and errors
+1. Send **one** request shape: `{ parser_input: { intent, ... } }` to `/api/v1/parser/execute`.
+2. The orchestrator decides what to search, what to ask, what to cache — never the UI.
+3. For "tell me about X" queries, just send `intent: "question"` and the message. The orchestrator runs WebHunter if X is unknown.
+4. Always send `context_update` for follow-ups — it cuts lookup cost.
+5. Render `data.*` for bootstrap/refine/regenerate, `answer.*` for question/compare/explain.
+6. Show `lookupConfidence` as a badge for web-sourced entities.
+7. Handle `missing_data` warnings and `evicted_entities` toasts.
+8. Never retry failed requests — orchestrator handles retries.
 
 **The orchestrator guarantees:**
-- Fault-tolerant execution with retries
-- Partial results when some data fails
-- No hallucinated filler data
-- Per-entity status tracking
-- Compact context updates
-- Maximum 3 companies for dynamic data
+
+- Stateless request handling with cached context per session.
+- WebHunter-backed lookup for any named company, even ones never seen before.
+- LLMPing-synthesized profiles grounded in real sources.
+- Fault tolerance: per-entity retries, partial results, no hallucinated fillers.
+- Compact `context_update` so follow-ups stay cheap.
+- Maximum 3 active competitors with 24h evicted cache.
