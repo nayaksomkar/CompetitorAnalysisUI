@@ -34,6 +34,7 @@ import type {
   AskOptions,
   AskResult,
   ApiClient,
+  StreamResponse,
 } from './client';
 import type { SampleId } from '../data';
 import { samples } from '../data';
@@ -274,6 +275,19 @@ export class HttpApi implements ApiClient {
   // The current backend returns the full analysis in `ask()`; regenerate
   // can re-call it or be extended with a dedicated endpoint later.
   return [];
+  }
+
+  async *streamAsk(opts: AskOptions): StreamResponse {
+  const result = await this.ask(opts);
+  for (let i = 0; i < result.text.length; i += 4) {
+  yield { type: 'text', delta: result.text.slice(i, i + 4) };
+  await new Promise((r) => setTimeout(r, 18));
+  }
+  for (const asset of result.assets) {
+  await new Promise((r) => setTimeout(r, 450));
+  yield { type: 'asset', asset };
+  }
+  yield { type: 'done' };
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {

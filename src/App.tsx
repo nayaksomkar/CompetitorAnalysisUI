@@ -10,6 +10,7 @@ import type { AnalysisData, BusinessProfile, ChatMessage, TabKey } from './types
 import { api } from './api/client';
 import type { SampleId } from './data';
 import { sampleList as staticSampleList, isGitHubConfigured } from './data';
+import { type Suggestion } from './localResponses';
 
 export default function App() {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
@@ -43,25 +44,64 @@ export default function App() {
   setTab('chat');
   };
 
-  const handleSend = async (text: string) => {
+  /**
+   * Unified progressive-pipeline consumer. The active API client exposes
+   * `streamAsk` which yields text deltas and assets in order. We push user
+   * message, mark thinking, then for every event we update the same
+   * placeholder chat message so the UI genuinely renders text as it streams
+   * and assets as they arrive — no pre-baked final message, no fake timers
+   * that re-animate already-rendered data.
+   */
+  const streamResponse = async (prompt: string) => {
   if (!data) return;
-  const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', text, createdAt: Date.now() };
-  const placeholder: ChatMessage = { id: `a-${Date.now()}`, role: 'assistant', createdAt: Date.now() + 1, streaming: true };
+  const t = Date.now();
+  const userMsg: ChatMessage = { id: `u-${t}`, role: 'user', text: prompt, createdAt: t };
+  const placeholderId = `a-${t}`;
+  const placeholder: ChatMessage = {
+  id: placeholderId,
+  role: 'assistant',
+  streaming: true,
+  text: '',
+  assets: [],
+  createdAt: t + 1,
+  };
   setMessages((m) => [...m, userMsg, placeholder]);
   setThinking(true);
-  try {
-  const res = await api.ask({ prompt: text, context: data });
-  const finalMsg: ChatMessage = {
-  id: placeholder.id,
-  role: 'assistant',
-  text: res.text,
-  assets: res.assets,
-  createdAt: Date.now(),
-  };
-  setMessages((m) => m.map((x) => (x.id === placeholder.id ? finalMsg : x)));
-  } finally {
+
+  // Give the user a beat to read the dots before streaming begins
+  await new Promise((r) => setTimeout(r, 350));
   setThinking(false);
+
+  try {
+  for await (const event of api.streamAsk({ prompt, context: data })) {
+  if (event.type === 'text') {
+    setMessages((m) => m.map((x) => x.id === placeholderId
+    ? { ...x, text: x.text + event.delta }
+    : x));
+  } else if (event.type === 'asset') {
+    setMessages((m) => m.map((x) => x.id === placeholderId
+    ? { ...x, assets: [...(x.assets ?? []), event.asset] }
+    : x));
+  } else if (event.type === 'done') {
+    setMessages((m) => m.map((x) => x.id === placeholderId
+    ? { ...x, streaming: false }
+    : x));
   }
+  }
+  } catch (e) {
+  console.error('Stream failed:', e);
+  setMessages((m) => m.map((x) => x.id === placeholderId
+  ? { ...x, streaming: false, text: x.text || 'Sorry, something went wrong while generating the response.' }
+  : x));
+  }
+  };
+
+  const handleSend = (text: string) => {
+  void streamResponse(text);
+  };
+
+  const handleLocalResponse = (suggestion: Suggestion) => {
+  void streamResponse(suggestion);
   };
 
   const reset = () => {
@@ -127,6 +167,7 @@ export default function App() {
   data={data}
   messages={messages}
   onSend={handleSend}
+  onLocalSend={handleLocalResponse as (text: string) => void}
   thinking={thinking}
   onSwitchSample={reset}
   onCreateOverview={(focusText) => {

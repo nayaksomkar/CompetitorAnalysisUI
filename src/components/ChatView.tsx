@@ -11,11 +11,13 @@ import { InsightCard, MarketGapCard, ReportCard, ActionPlanList } from './AssetC
 import { OverviewDashboard } from './OverviewDashboard';
 import { ContextMenu, type ContextMenuOption } from './ContextMenu';
 import type { ChatMessage, ChatAsset, AnalysisData, LookupCompetitor } from '../types';
+import { isSuggestion } from '../localResponses';
 
 interface ChatProps {
   data: AnalysisData;
   messages: ChatMessage[];
   onSend: (text: string) => void;
+  onLocalSend?: (text: string) => void;
   thinking?: boolean;
   onSwitchSample?: () => void;
   onCreateOverview?: (focusText?: string) => void;
@@ -30,7 +32,7 @@ const suggestions = [
   'Show me a chart of market share',
 ];
 
-export function ChatView({ data, messages, onSend, thinking, onSwitchSample, onCreateOverview }: ChatProps) {
+export function ChatView({ data, messages, onSend, onLocalSend, thinking, onSwitchSample, onCreateOverview }: ChatProps) {
   const [input, setInput] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,7 +41,7 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample, onC
 
   useEffect(() => {
   scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages.length, thinking]);
+  }, [messages.length, thinking, messages[messages.length - 1]?.assets?.length]);
 
   const startLongPress = (e: React.MouseEvent | React.TouchEvent, text: string) => {
   longPressFired.current = false;
@@ -78,7 +80,12 @@ export function ChatView({ data, messages, onSend, thinking, onSwitchSample, onC
 
   const submit = (text: string) => {
   if (!text.trim()) return;
-  onSend(text.trim());
+  const trimmed = text.trim();
+  if (onLocalSend && isSuggestion(trimmed)) {
+    onLocalSend(trimmed);
+  } else {
+    onSend(trimmed);
+  }
   setInput('');
   };
 
@@ -176,13 +183,15 @@ function Message({ message, data, onLongPress }: { message: ChatMessage; data: A
   <div className="flex items-start gap-2">
   <Icon.Sparkles className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
   <div className="prose-chat text-sm text-ink-900 leading-relaxed">
-  {renderInline(message.text)}
+  {message.streaming ? <TypewriterText text={message.text ?? ''} /> : renderInline(message.text ?? '')}
   </div>
   </div>
   </div>
   )}
   {message.assets?.map((a, i) => (
-  <AssetRender key={i} asset={a} data={data} />
+  <div key={`${i}-${a.kind}`} className="animate-fade-up">
+  <AssetRender asset={a} data={data} />
+  </div>
   ))}
   </div>
   </div>
@@ -232,6 +241,18 @@ function ThinkingDots() {
   </div>
   </div>
   </div>
+  );
+}
+
+function TypewriterText({ text }: { text: string }) {
+  // Text is streamed in from the API/local pipeline in real-time chunks, so
+  // we just render whatever has arrived and add a blinking cursor to signal
+  // that more is coming.
+  return (
+    <span className="inline">
+      {renderInline(text ?? '')}
+      <span className="inline-block w-1.5 h-4 bg-emerald-500 ml-0.5 animate-pulse rounded-sm align-middle" />
+    </span>
   );
 }
 

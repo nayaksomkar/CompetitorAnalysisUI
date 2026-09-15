@@ -29,9 +29,22 @@ export interface AskResult {
   assets: ChatAsset[];
 }
 
+export type StreamEvent =
+  | { type: 'text'; delta: string }
+  | { type: 'asset'; asset: ChatAsset }
+  | { type: 'done' };
+
+/**
+ * Progressive response stream. Both the orchestrator path and the local
+ * predefined path implement this contract, so the chat UI consumes one
+ * shape regardless of source.
+ */
+export type StreamResponse = AsyncGenerator<StreamEvent, void, void>;
+
 export interface ApiClient {
   bootstrap(profile: BusinessProfile, sampleId: SampleId): Promise<AnalysisData>;
   ask(opts: AskOptions): Promise<AskResult>;
+  streamAsk(opts: AskOptions): StreamResponse;
   regenerate(opts: { section: string; data: AnalysisData }): Promise<ChatAsset[]>;
 }
 
@@ -191,7 +204,32 @@ const buildAskResult = (prompt: string, data: AnalysisData): AskResult => {
   };
   }
   }
-};
+  };
+
+/**
+ * Convert a complete AskResult into a sequence of StreamEvents with realistic
+ * pacing — short text chunks first, then assets one-by-one. Used by the
+ * local/mocked predefined path so it feels like the orchestrator stream.
+ */
+async function* streamFromResult(result: AskResult, opts?: { textChunkSize?: number; textChunkDelayMs?: number; assetDelayMs?: number }): StreamResponse {
+  const chunkSize = opts?.textChunkSize ?? 4;
+  const textDelay = opts?.textChunkDelayMs ?? 18;
+  const assetDelay = opts?.assetDelayMs ?? 450;
+
+  if (result.text) {
+    for (let i = 0; i < result.text.length; i += chunkSize) {
+      yield { type: 'text', delta: result.text.slice(i, i + chunkSize) };
+      await sleep(textDelay);
+    }
+  }
+
+  for (const asset of result.assets) {
+    await sleep(assetDelay);
+    yield { type: 'asset', asset };
+  }
+
+  yield { type: 'done' };
+}
 
 const mockApi: ApiClient = {
   async bootstrap(profile, sampleId) {
@@ -203,6 +241,12 @@ const mockApi: ApiClient = {
   await sleep(450);
   const data = context ?? samples.perfume;
   return buildAskResult(prompt, data);
+  },
+  async *streamAsk({ prompt, context }: AskOptions): StreamResponse {
+  await sleep(300);
+  const data = context ?? samples.perfume;
+  const result = buildAskResult(prompt, data);
+  yield* streamFromResult(result);
   },
   async regenerate({ section, data }) {
   await sleep(350);
@@ -251,6 +295,32 @@ class LlmPingApi implements ApiClient {
   // Fallback to local response if LLM Ping is unavailable
   console.warn('LLM Ping unavailable, using local fallback:', error);
   return buildAskResult(prompt, data);
+  }
+  }
+
+  async *streamAsk({ prompt, context }: AskOptions): StreamResponse {
+  const data = context ?? samples.perfume;
+  const llmpingUrl = getLlmPingUrl();
+
+  try {
+    const response = await fetch(`${llmpingUrl}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: prompt, message: prompt, prompt }),
+    });
+
+    if (!response.ok) throw new Error(`LLM Ping returned ${response.status}`);
+
+    const result = await response.json();
+    const aiText = result.response ?? result.answer ?? result.text ?? result.result ?? '';
+
+    const text = aiText || `Here's what I found about "${prompt}" for ${data.profile.businessName}.`;
+    const assets = this.buildAssetsFromPrompt(prompt, data);
+    yield* streamFromResult({ text, assets });
+  } catch (error) {
+    console.warn('LLM Ping unavailable, using local fallback:', error);
+    const fallback = buildAskResult(prompt, data);
+    yield* streamFromResult(fallback);
   }
   }
 
@@ -465,6 +535,17 @@ class OrchestratorApi implements ApiClient {
     // Fall back to local build when orchestrator is unreachable so the UI stays usable
     console.warn('Orchestrator unavailable, using local fallback:', fetchError);
     return buildAskResult(prompt, data);
+  }
+
+  async *streamAsk({ prompt, context }: AskOptions): StreamResponse {
+    const data = context ?? samples.perfume;
+    let result: AskResult;
+    try {
+      result = await this.ask({ prompt, context: data });
+    } catch {
+      result = buildAskResult(prompt, data);
+    }
+    yield* streamFromResult(result, { textChunkSize: 6, textChunkDelayMs: 16, assetDelayMs: 500 });
   }
 
   async regenerate({ section, data }: { section: string; data: AnalysisData }): Promise<ChatAsset[]> {
