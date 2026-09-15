@@ -18,6 +18,10 @@ import type {
 } from '../types';
 import { samples, type SampleId } from '../data';
 import { getActiveUrl } from '../components/EndpointSettings';
+import type { StreamResponse } from './stream';
+import { streamFromResult, tryNativeHttpStream } from './stream';
+
+export type { StreamEvent, StreamResponse } from './stream';
 
 export interface AskOptions {
   prompt: string;
@@ -28,18 +32,6 @@ export interface AskResult {
   text: string;
   assets: ChatAsset[];
 }
-
-export type StreamEvent =
-  | { type: 'text'; delta: string }
-  | { type: 'asset'; asset: ChatAsset }
-  | { type: 'done' };
-
-/**
- * Progressive response stream. Both the orchestrator path and the local
- * predefined path implement this contract, so the chat UI consumes one
- * shape regardless of source.
- */
-export type StreamResponse = AsyncGenerator<StreamEvent, void, void>;
 
 export interface ApiClient {
   bootstrap(profile: BusinessProfile, sampleId: SampleId): Promise<AnalysisData>;
@@ -206,31 +198,6 @@ const buildAskResult = (prompt: string, data: AnalysisData): AskResult => {
   }
   };
 
-/**
- * Convert a complete AskResult into a sequence of StreamEvents with realistic
- * pacing — short text chunks first, then assets one-by-one. Used by the
- * local/mocked predefined path so it feels like the orchestrator stream.
- */
-async function* streamFromResult(result: AskResult, opts?: { textChunkSize?: number; textChunkDelayMs?: number; assetDelayMs?: number }): StreamResponse {
-  const chunkSize = opts?.textChunkSize ?? 4;
-  const textDelay = opts?.textChunkDelayMs ?? 18;
-  const assetDelay = opts?.assetDelayMs ?? 450;
-
-  if (result.text) {
-    for (let i = 0; i < result.text.length; i += chunkSize) {
-      yield { type: 'text', delta: result.text.slice(i, i + chunkSize) };
-      await sleep(textDelay);
-    }
-  }
-
-  for (const asset of result.assets) {
-    await sleep(assetDelay);
-    yield { type: 'asset', asset };
-  }
-
-  yield { type: 'done' };
-}
-
 const mockApi: ApiClient = {
   async bootstrap(profile, sampleId) {
   await sleep(250);
@@ -305,11 +272,17 @@ class LlmPingApi implements ApiClient {
   try {
     const response = await fetch(`${llmpingUrl}/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: prompt, message: prompt, prompt }),
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/x-ndjson, application/json' },
+    body: JSON.stringify({ query: prompt, message: prompt, prompt, stream: true }),
     });
 
     if (!response.ok) throw new Error(`LLM Ping returned ${response.status}`);
+
+    const native = await tryNativeHttpStream(response);
+    if (native) {
+      yield* native;
+      return;
+    }
 
     const result = await response.json();
     const aiText = result.response ?? result.answer ?? result.text ?? result.result ?? '';
@@ -539,13 +512,24 @@ class OrchestratorApi implements ApiClient {
 
   async *streamAsk({ prompt, context }: AskOptions): StreamResponse {
     const data = context ?? samples.perfume;
-    let result: AskResult;
     try {
-      result = await this.ask({ prompt, context: data });
+      const streamed = await this.fetchOrchestratorStream(prompt, data);
+      if (streamed) {
+        yield* streamed;
+        return;
+      }
     } catch {
-      result = buildAskResult(prompt, data);
+      /* fall through to local */
     }
-    yield* streamFromResult(result, { textChunkSize: 6, textChunkDelayMs: 16, assetDelayMs: 500 });
+    yield* streamFromResult(buildAskResult(prompt, data));
+  }
+
+  /** Prefer a native SSE/NDJSON body; otherwise parse JSON then replay as stages. */
+  private async fetchOrchestratorStream(prompt: string, data: AnalysisData): Promise<StreamResponse | null> {
+    const result = await this.ask({ prompt, context: data });
+    // ask() currently buffers JSON. Replay through the shared stage pipeline so
+    // the UI still receives text and assets as separate generation events.
+    return streamFromResult(result);
   }
 
   async regenerate({ section, data }: { section: string; data: AnalysisData }): Promise<ChatAsset[]> {
