@@ -10,7 +10,8 @@ import type { AnalysisData, BusinessProfile, ChatMessage, TabKey } from './types
 import { api } from './api/client';
 import type { SampleId } from './data';
 import { sampleList as staticSampleList, isGitHubConfigured } from './data';
-import { type Suggestion } from './localResponses';
+import { getLocalResponse, QUICK_ACTIONS, type QuickActionId } from './localResponses';
+import { streamFromResult } from './api/stream';
 
 export default function App() {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
@@ -100,8 +101,43 @@ export default function App() {
   void streamResponse(text);
   };
 
-  const handleLocalResponse = (suggestion: Suggestion) => {
-  void streamResponse(suggestion);
+  const handleLocalResponse = (actionId: QuickActionId) => {
+  if (!data) return;
+  void streamLocalResponse(actionId);
+  };
+
+  const streamLocalResponse = async (actionId: QuickActionId) => {
+  if (!data) return;
+  const action = getLocalResponse(actionId, data);
+  const t = Date.now();
+  const userMsg: ChatMessage = { id: `u-${t}`, role: 'user', text: QUICK_ACTIONS.find((action) => action.id === actionId)?.label ?? actionId, createdAt: t };
+  const placeholderId = `a-${t}`;
+  const placeholder: ChatMessage = {
+  id: placeholderId,
+  role: 'assistant',
+  streaming: true,
+  text: '',
+  assets: [],
+  createdAt: t + 1,
+  };
+  setMessages((m) => [...m, userMsg, placeholder]);
+  setThinking(true);
+  await new Promise((r) => setTimeout(r, 350));
+  setThinking(false);
+  try {
+  for await (const event of streamFromResult(action)) {
+  if (event.type === 'text') {
+    setMessages((m) => m.map((x) => x.id === placeholderId ? { ...x, text: x.text + event.delta } : x));
+  } else if (event.type === 'asset') {
+    setMessages((m) => m.map((x) => x.id === placeholderId ? { ...x, assets: [...(x.assets ?? []), event.asset] } : x));
+  } else {
+    setMessages((m) => m.map((x) => x.id === placeholderId ? { ...x, streaming: false } : x));
+  }
+  }
+  } catch (e) {
+  console.error('Local response failed:', e);
+  setMessages((m) => m.map((x) => x.id === placeholderId ? { ...x, streaming: false, text: x.text || 'Sorry, the local response could not be displayed.' } : x));
+  }
   };
 
   const reset = () => {
@@ -167,7 +203,7 @@ export default function App() {
   data={data}
   messages={messages}
   onSend={handleSend}
-  onLocalSend={handleLocalResponse as (text: string) => void}
+  onLocalSend={handleLocalResponse}
   thinking={thinking}
   onSwitchSample={reset}
   onCreateOverview={(focusText) => {
