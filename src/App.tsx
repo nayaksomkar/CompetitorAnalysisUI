@@ -13,6 +13,13 @@ import { sampleList as staticSampleList, isGitHubConfigured } from './data';
 import { getLocalResponse, QUICK_ACTIONS, type QuickActionId } from './localResponses';
 import { streamFromResult } from './api/stream';
 
+const LOCAL_RESPONSE_STREAM_PACE = {
+  wordsPerChunk: 2,
+  textChunkDelayMs: 72,
+  assetDelayMs: 650,
+  betweenStageMs: 180,
+} as const;
+
 export default function App() {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [sampleId, setSampleId] = useState<SampleId | null>(null);
@@ -125,7 +132,7 @@ export default function App() {
   await new Promise((r) => setTimeout(r, 350));
   setThinking(false);
   try {
-  for await (const event of streamFromResult(action)) {
+  for await (const event of streamFromResult(action, LOCAL_RESPONSE_STREAM_PACE)) {
   if (event.type === 'text') {
     setMessages((m) => m.map((x) => x.id === placeholderId ? { ...x, text: x.text + event.delta } : x));
   } else if (event.type === 'asset') {
