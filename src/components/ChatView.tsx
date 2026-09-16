@@ -11,26 +11,18 @@ import { InsightCard, MarketGapCard, ReportCard, ActionPlanList } from './AssetC
 import { OverviewDashboard } from './OverviewDashboard';
 import { ContextMenu, type ContextMenuOption } from './ContextMenu';
 import type { ChatMessage, ChatAsset, AnalysisData, LookupCompetitor } from '../types';
-import { isSuggestion } from '../localResponses';
+import { QUICK_ACTIONS, getQuickActionId } from '../localResponses';
+import type { QuickActionId } from '../localResponses';
 
 interface ChatProps {
   data: AnalysisData;
   messages: ChatMessage[];
   onSend: (text: string) => void;
-  onLocalSend?: (text: string) => void;
+  onLocalSend?: (actionId: QuickActionId) => void;
   thinking?: boolean;
   onSwitchSample?: () => void;
   onCreateOverview?: (focusText?: string) => void;
 }
-
-const suggestions = [
-  'Give me an overview',
-  'Show me a SWOT for the biggest threat',
-  'Compare pricing across the top competitors',
-  'Where are the biggest market gaps?',
-  'Recommend an action plan',
-  'Show me a chart of market share',
-];
 
 export function ChatView({ data, messages, onSend, onLocalSend, thinking, onSwitchSample, onCreateOverview }: ChatProps) {
   const [input, setInput] = useState('');
@@ -81,8 +73,9 @@ export function ChatView({ data, messages, onSend, onLocalSend, thinking, onSwit
   const submit = (text: string) => {
   if (!text.trim()) return;
   const trimmed = text.trim();
-  if (onLocalSend && isSuggestion(trimmed)) {
-    onLocalSend(trimmed);
+  const actionId = getQuickActionId(trimmed);
+  if (onLocalSend && actionId) {
+    onLocalSend(actionId);
   } else {
     onSend(trimmed);
   }
@@ -126,9 +119,9 @@ export function ChatView({ data, messages, onSend, onLocalSend, thinking, onSwit
 
   <div className="border-t border-ink-100  px-4 sm:px-6 py-3 sm:py-4 bg-white  shrink-0">
   <div className="flex flex-wrap gap-2 mb-3">
-  {suggestions.map((s) => (
-  <button key={s} onClick={() => submit(s)} className="pill bg-ink-50  text-ink-700  hover:bg-ink-100 border border-ink-100 ">
-  {s}
+  {QUICK_ACTIONS.map((action) => (
+  <button key={action.id} onClick={() => submit(action.label)} className="pill bg-ink-50  text-ink-700  hover:bg-ink-100 border border-ink-100 ">
+  {action.label}
   </button>
   ))}
   </div>
