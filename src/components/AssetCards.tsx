@@ -62,16 +62,16 @@ export function MarketGapCard({ gap }: { gap: MarketGap }) {
   );
 }
 
-function Score({ label, value, accent }: { label: string; value: number; accent: 'green' | 'rose' }) {
+function Score({ label, value, accent }: { label: string; value?: number; accent: 'green' | 'rose' }) {
   const color = accent === 'green' ? 'bg-emerald-500' : 'bg-rose-500';
   return (
   <div className="rounded-lg bg-ink-50/60  p-3">
   <div className="flex items-center justify-between text-xs text-ink-500  mb-1.5">
   <span>{label}</span>
-  <span className="font-semibold text-ink-900 ">{value}/100</span>
+  <span className="font-semibold text-ink-900 ">{value === undefined ? 'Not reported' : `${value}/100`}</span>
   </div>
   <div className="h-1.5 rounded-full bg-ink-100  overflow-hidden">
-  <div className={`h-full ${color}`} style={{ width: `${value}%` }} />
+  {value !== undefined && <div className={`h-full ${color}`} style={{ width: `${value}%` }} />}
   </div>
   </div>
   );

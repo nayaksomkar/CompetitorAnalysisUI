@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Questionnaire } from './components/Questionnaire';
 import { TabContent } from './views/TabViews';
 import { tabs } from './components/tabs';
@@ -21,17 +21,68 @@ export default function App() {
   const [actionResult, setActionResult] = useState<{ response: OrchestratorResponse; action: ContextualAction } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [missingData, setMissingData] = useState<NonNullable<OrchestratorResponse['missing_data']>>([]);
+  const sampleLoadId = useRef(0);
 
-  const handleSubmit = async (p: BusinessProfile, s: SampleId) => {
-  setProfile(p);
-  setSampleId(s);
-  const full = await api.bootstrap(p, s);
-  setData(full);
-  setTab('overview');
+  const handleSubmit = async (p: BusinessProfile, s: SampleId | null) => {
+  if (loading) return;
+  setSubmitError(null);
+  setMissingData([]);
+  const loadId = ++sampleLoadId.current;
+
+  if (s) {
+    const local = api.getLocalSample(s);
+    if (local) {
+      setData(local);
+      setProfile(local.profile);
+      setSampleId(s);
+      setActionResult(null);
+      setTab('overview');
+      setLoading(false);
+
+      void api.loadSample(s).then((remote) => {
+        if (sampleLoadId.current !== loadId) return;
+        setData(remote);
+        setProfile(remote.profile);
+      }).catch((error: unknown) => {
+        if (sampleLoadId.current === loadId) {
+          console.warn(`[data] Unable to refresh ${s} from GitHub; keeping the local dataset.`, error);
+        }
+      });
+      return;
+    }
+  }
+
+  setLoading(true);
+  try {
+    if (s) {
+      const full = await api.loadSample(s);
+      if (sampleLoadId.current !== loadId) return;
+      setData(full);
+      setProfile(full.profile);
+      setSampleId(s);
+    } else {
+      const result = await api.bootstrap(p);
+      if (sampleLoadId.current !== loadId) return;
+      setData(result.data);
+      setProfile(p);
+      setSampleId(null);
+      setMissingData(result.missingData);
+    }
+    setActionResult(null);
+    setTab('overview');
+  } catch (error) {
+    setSubmitError(error instanceof Error ? error.message : 'Unable to load the analysis.');
+  } finally {
+    setLoading(false);
+  }
   };
 
   const reset = () => {
-  setProfile(null); setSampleId(null); setData(null); setActionResult(null); setTab('overview');
+  sampleLoadId.current += 1;
+  setProfile(null); setSampleId(null); setData(null); setActionResult(null); setMissingData([]); setSubmitError(null); setTab('overview');
   };
 
   const hardReset = () => {
@@ -45,8 +96,8 @@ export default function App() {
   setSidebarOpen(false);
   };
 
-  if (!data || !profile || !sampleId) {
-  return <Questionnaire onSubmit={handleSubmit} />;
+  if (!data || !profile) {
+  return <Questionnaire onSubmit={handleSubmit} loading={loading} error={submitError} />;
   }
 
   return (
@@ -96,6 +147,14 @@ export default function App() {
   </div>
 
   <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+  {missingData.length > 0 && (
+  <div role="status" className="shrink-0 px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm text-amber-900">
+  <p className="font-medium">Analysis is incomplete</p>
+  <ul className="mt-1 list-disc pl-5">
+  {missingData.map((item, index) => <li key={`${item.field}-${index}`}>{item.field}: {item.reason}</li>)}
+  </ul>
+  </div>
+  )}
   {actionResult && (
   <ActionResultView
   result={actionResult.response}
@@ -134,7 +193,7 @@ function Sidebar({
   profile, sampleId, activeTab, onTabChange, onSwitch, onHardReset, isOpen, onClose, onOpenSettings,
 }: {
   profile: BusinessProfile;
-  sampleId: SampleId;
+  sampleId: SampleId | null;
   activeTab: TabKey;
   onTabChange: (t: TabKey) => void;
   onSwitch: () => void;
@@ -185,11 +244,11 @@ function Sidebar({
   </nav>
 
   <div className="p-3 border-t border-ink-100 space-y-2">
-  <ServerStatus />
+  <ServerStatus enabled={!sampleId} />
   <EndpointBadge onOpenSettings={onOpenSettings} />
   {isGitHubConfigured() && (
   <a
-  href={`https://github.com/${import.meta.env.VITE_DATA_REPO}`}
+  href={`https://github.com/${import.meta.env.VITE_DATA_REPO || 'nayaksomkar/CompetitorAnalysisUI'}`}
   target="_blank"
   rel="noreferrer"
   className="block rounded-xl bg-white border border-ink-100 p-3 hover:border-ink-200 transition"
@@ -199,13 +258,13 @@ function Sidebar({
   <p className="text-xs font-medium text-ink-700">Data from GitHub</p>
   </div>
   <p className="text-[10px] text-ink-400 truncate mt-0.5 font-mono">
-  {import.meta.env.VITE_DATA_REPO}
+  {import.meta.env.VITE_DATA_REPO || 'nayaksomkar/CompetitorAnalysisUI'}
   </p>
   </a>
   )}
   <div className="rounded-xl bg-white border border-ink-100 p-3">
-  <p className="text-xs text-ink-500">Sample analysis</p>
-  <p className="text-sm font-medium text-ink-900 mt-0.5">{meta?.label}</p>
+  <p className="text-xs text-ink-500">{sampleId ? 'Sample analysis' : 'Dynamic analysis'}</p>
+  <p className="text-sm font-medium text-ink-900 mt-0.5">{meta?.label ?? profile.businessName}</p>
   <div className="flex gap-2 mt-2">
   <button onClick={onSwitch} className="text-xs text-ink-600 hover:text-ink-900 inline-flex items-center gap-1">
   <Icon.Refresh className="w-3 h-3" /> Switch

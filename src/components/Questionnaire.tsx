@@ -4,10 +4,12 @@ import { sampleList } from '../data';
 import type { BusinessProfile, SampleId } from '../types';
 
 interface QuestionnaireProps {
-  onSubmit: (profile: BusinessProfile, sampleId: SampleId) => void;
+  onSubmit: (profile: BusinessProfile, sampleId: SampleId | null) => void | Promise<void>;
+  loading?: boolean;
+  error?: string | null;
 }
 
-export function Questionnaire({ onSubmit }: QuestionnaireProps) {
+export function Questionnaire({ onSubmit, loading = false, error }: QuestionnaireProps) {
   const [sampleId, setSampleId] = useState<SampleId | null>('perfume');
   const [form, setForm] = useState<BusinessProfile>(sampleList.find((s) => s.id === 'perfume')!.profile);
 
@@ -25,8 +27,10 @@ export function Questionnaire({ onSubmit }: QuestionnaireProps) {
   researchGoals: [],
   };
 
-  const update = <K extends keyof BusinessProfile>(k: K, v: BusinessProfile[K]) =>
+  const update = <K extends keyof BusinessProfile>(k: K, v: BusinessProfile[K]) => {
+  setSampleId(null);
   setForm((f) => ({ ...f, [k]: v }));
+  };
 
   const switchSample = (id: SampleId) => {
   setSampleId(id);
@@ -107,13 +111,13 @@ export function Questionnaire({ onSubmit }: QuestionnaireProps) {
   ))}
   </div>
   <p className="text-xs text-ink-400  mt-3">
-  {sampleId === null ? 'Fill in your own business details below.' : 'Selecting a sample pre-fills the form so you can edit and submit.'}
+  {sampleId === null ? 'Enter your business details to generate a dynamic analysis.' : 'Predefined data loads locally first, then refreshes from GitHub.'}
   </p>
   </div>
 
   <form
   className="card bg-white  border border-ink-100  p-6 space-y-5"
-  onSubmit={(e) => { e.preventDefault(); onSubmit(form, sampleId ?? 'perfume'); }}
+  onSubmit={(e) => { e.preventDefault(); void onSubmit(form, sampleId); }}
   >
   <div className="grid sm:grid-cols-2 gap-4">
   <Field label="Business name">
@@ -201,11 +205,15 @@ export function Questionnaire({ onSubmit }: QuestionnaireProps) {
   )}
   </Field>
 
+  {error && (
+  <p role="alert" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+  {error}
+  </p>
+  )}
   <div className="flex items-center justify-between gap-3 pt-2 border-t border-ink-100 ">
   <p className="text-xs text-ink-500 ">Your data is stored only in this browser session.</p>
-  <button type="submit" className="btn-primary">
-  <Icon.Sparkles />
-  Start analysis
+  <button type="submit" className="btn-primary" disabled={loading}>
+  {loading ? <span className="animate-pulse">Loading analysis...</span> : <><Icon.Sparkles /> Start analysis</>}
   </button>
   </div>
   </form>

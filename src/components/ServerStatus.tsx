@@ -5,7 +5,7 @@ interface ServiceStatus {
   id: string;
   name: string;
   url: string;
-  status: 'checking' | 'online' | 'offline';
+  status: 'checking' | 'online' | 'offline' | 'idle';
   latency?: number;
 }
 
@@ -20,7 +20,7 @@ async function checkService(url: string): Promise<{ online: boolean; latency: nu
   }
 }
 
-export function ServerStatus() {
+export function ServerStatus({ enabled = true }: { enabled?: boolean }) {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [expanded, setExpanded] = useState(false);
 
@@ -47,11 +47,16 @@ export function ServerStatus() {
   };
 
   useEffect(() => {
-    setServices(loadServices());
-    checkAll();
+    const targets = loadServices();
+    if (!enabled) {
+      setServices(targets.map((service) => ({ ...service, status: 'idle' as const })));
+      return;
+    }
+    setServices(targets);
+    void checkAll();
     const interval = setInterval(checkAll, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [enabled]);
 
   const onlineCount = services.filter((s) => s.status === 'online').length;
   const allOnline = services.length > 0 && services.every((s) => s.status === 'online');
@@ -68,6 +73,8 @@ export function ServerStatus() {
             className={`h-2 w-2 rounded-full shrink-0 ${
               noneConfigured
                 ? 'bg-ink-300'
+                : !enabled
+                ? 'Not checked for local sample'
                 : services.some((s) => s.status === 'checking')
                 ? 'bg-amber-400 animate-pulse'
                 : allOnline
@@ -109,6 +116,8 @@ export function ServerStatus() {
                       ? 'bg-amber-400 animate-pulse'
                       : s.status === 'online'
                       ? 'bg-emerald-500'
+                      : s.status === 'idle'
+                      ? 'bg-ink-300'
                       : 'bg-rose-500'
                   }`}
                 />
@@ -123,11 +132,11 @@ export function ServerStatus() {
                     : 'text-ink-400'
                 }`}
               >
-                {s.status === 'checking' ? '…' : s.status === 'online' ? `live · ${s.latency}ms` : 'off'}
+                {s.status === 'checking' ? '…' : s.status === 'online' ? `live · ${s.latency}ms` : s.status === 'idle' ? 'not checked' : 'off'}
               </span>
             </li>
           ))}
-          {services.length > 0 && (
+          {enabled && services.length > 0 && (
             <li className="pt-1.5 mt-1.5 border-t border-ink-100">
               <button
                 onClick={(e) => {

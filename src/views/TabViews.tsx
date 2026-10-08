@@ -88,13 +88,17 @@ function CompetitorsView({ data }: { data: AnalysisData }) {
   columns: ['Vendor', 'Share', 'Growth', 'Pricing tier', 'Position', 'HQ', 'Biggest weakness'],
   rows: data.competitors.map((c) => ({
   name: c.name,
-  cells: [`${c.marketShare}%`, `${c.growthRate}%`, c.pricingTier ?? '—', c.marketPosition ?? '—', c.hq ?? '—', c.weaknesses?.[0] ?? '—'],
+  cells: [percent(c.marketShare), percent(c.growthRate), c.pricingTier ?? '—', c.marketPosition ?? '—', c.hq ?? '—', c.weaknesses?.[0] ?? '—'],
   })),
   }}
   />
   </div>
   </div>
   );
+}
+
+function percent(value: number | undefined): string {
+  return value === undefined ? '—' : `${value}%`;
 }
 
 function ProductsView({ data }: { data: AnalysisData }) {

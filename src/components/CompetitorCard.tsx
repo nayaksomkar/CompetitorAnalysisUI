@@ -14,29 +14,36 @@ export function CompetitorCard({
   explainButton?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(expanded);
+  const logoColor = competitor.logoColor ?? '';
+  const hasHexLogoColor = /^#[\da-f]{3,8}$/i.test(logoColor);
 
   return (
   <Card padded={false} className="overflow-hidden">
   <div className="p-5">
   <div className="flex items-start gap-3">
-  <div className={`h-10 w-10 rounded-xl ${competitor.logoColor} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+  <div
+  className={`h-10 w-10 rounded-xl ${hasHexLogoColor ? 'bg-ink-500' : logoColor || 'bg-ink-500'} flex items-center justify-center text-white font-bold text-sm shrink-0`}
+  style={hasHexLogoColor ? { backgroundColor: logoColor } : undefined}
+  >
   {competitor.name.slice(0, 2)}
   </div>
   <div className="min-w-0 flex-1">
   <div className="flex items-center gap-2 flex-wrap">
   <h3 className="font-semibold text-ink-900 ">{competitor.name}</h3>
+  {competitor.marketPosition && (
   <Badge tone={competitor.marketPosition === 'Leader' ? 'red' : competitor.marketPosition === 'Challenger' ? 'violet' : competitor.marketPosition === 'Niche' ? 'green' : 'amber'}>
   {competitor.marketPosition}
   </Badge>
-  <Badge tone="gray">{competitor.pricingTier}</Badge>
+  )}
+  {competitor.pricingTier && <Badge tone="gray">{competitor.pricingTier}</Badge>}
   </div>
   <p className="text-sm text-ink-600  mt-1.5 leading-relaxed">{competitor.description}</p>
   </div>
   </div>
 
   <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-  <Stat label="Share" value={`${competitor.marketShare}%`} />
-  <Stat label="YoY growth" value={`${competitor.growthRate ?? 0}%`} accent={(competitor.growthRate ?? 0) > 30 ? 'green' : 'neutral'} />
+  <Stat label="Share" value={competitor.marketShare === undefined ? '—' : `${competitor.marketShare}%`} />
+  <Stat label="YoY growth" value={competitor.growthRate === undefined ? '—' : `${competitor.growthRate}%`} accent={competitor.growthRate !== undefined && competitor.growthRate > 30 ? 'green' : 'neutral'} />
   <Stat label="Funding" value={competitor.funding ?? '—'} />
   <Stat label="Founded" value={competitor.founded ?? '—'} />
   </div>

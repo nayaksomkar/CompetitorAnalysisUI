@@ -86,7 +86,7 @@ export interface PricingTier {
   id: ID;
   competitorId?: ID;
   name: string;
-  priceMonthly: number | 'Custom';
+  priceMonthly?: number | string;
   billing?: 'monthly' | 'yearly';
   features: string[];
   bestFor?: string;
@@ -98,8 +98,8 @@ export interface MarketGap {
   id: ID;
   title: string;
   description: string;
-  opportunityScore: number;
-  difficultyScore: number;
+  opportunityScore?: number;
+  difficultyScore?: number;
   estimatedRevenue?: string;
   affectedSegments?: string[];
   explanation?: Explanation;
@@ -161,6 +161,13 @@ export interface ChartData {
   yLabel?: string;
   series: ChartSeries[];
   explanation?: Explanation;
+}
+
+export interface AnalysisMetric {
+  id: ID;
+  label: string;
+  value: string | number;
+  change?: string;
 }
 
 // ---------- Lookup (web-searched competitor) ----------
@@ -275,6 +282,10 @@ export interface AnalysisData {
   businessName: string;
   industry: string;
   idea: string;
+  businessSummary?: string;
+  executiveSummary?: string;
+  positioning?: string;
+  metricCards?: AnalysisMetric[];
   targetCustomers?: string;
   geography?: string;
   pricing?: string;

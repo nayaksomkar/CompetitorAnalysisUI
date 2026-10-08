@@ -58,8 +58,14 @@ export function PricingTable({
 }
 
 function PricingCard({ tier, billing }: { tier: PricingTier; billing: 'monthly' | 'yearly' }) {
-  const price = tier.priceMonthly === 'Custom' ? 'Custom' : `₹${tier.priceMonthly.toLocaleString('en-IN')}`;
-  const cycle = tier.priceMonthly === 'Custom' ? '' : billing === 'yearly' ? '/mo · billed yearly' : '/mo';
+  const price = tier.priceMonthly === undefined
+    ? 'Not reported'
+    : typeof tier.priceMonthly === 'number'
+      ? `₹${tier.priceMonthly.toLocaleString('en-IN')}`
+      : tier.priceMonthly;
+  const cycle = typeof tier.priceMonthly !== 'number'
+    ? ''
+    : billing === 'yearly' ? '/mo · billed yearly' : '/mo';
 
   return (
   <div

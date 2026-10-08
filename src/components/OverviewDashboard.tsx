@@ -40,7 +40,7 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   columns: ['Vendor', 'Share', 'Growth', 'Pricing tier', 'Position', 'Weakness'],
   rows: competitors.map((c) => ({
   name: c.name,
-  cells: [`${c.marketShare ?? '—'}%`, `${c.growthRate ?? '—'}%`, c.pricingTier ?? '—', c.marketPosition ?? '—', c.weaknesses?.[0] ?? '—'],
+  cells: [percent(c.marketShare), percent(c.growthRate), c.pricingTier ?? '—', c.marketPosition ?? '—', c.weaknesses?.[0] ?? '—'],
   })),
   } : null;
 
@@ -49,6 +49,13 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   const focusMatchesCompetitor = competitors.find((c) => lowerFocus.includes(c.name.toLowerCase()));
   const isPricingFocus = lowerFocus.includes('pricing') || lowerFocus.includes('price');
   const isGapFocus = lowerFocus.includes('gap') || lowerFocus.includes('opportunity');
+
+  const overviewCharts = [
+    charts.marketSharePie.series.length > 0 ? charts.marketSharePie : charts.marketShare,
+    charts.growthPie.series.length > 0 ? charts.growthPie : charts.growth,
+    charts.pricingPie.series.length > 0 ? charts.pricingPie : charts.pricing,
+    charts.featureAdoption,
+  ].filter((chart) => chart.series.length > 0);
 
   const visibleInsights = insights ?? [];
   const opportunities = visibleInsights.filter((i) => i.category === 'Opportunity' || i.category === 'Recommendation');
@@ -74,6 +81,12 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   {/* Executive Summary */}
   <div className={sectionClass}>
   <h3 className="text-sm font-semibold text-ink-700  uppercase tracking-wide">Executive Summary</h3>
+  {(data.executiveSummary || data.businessSummary) && (
+  <p className="text-sm text-ink-700 leading-relaxed">{data.executiveSummary || data.businessSummary}</p>
+  )}
+  {data.positioning && (
+  <p className="text-sm text-ink-600"><span className="font-medium text-ink-800">Positioning:</span> {data.positioning}</p>
+  )}
   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
   <Stat label="Competitors" value={competitors.length} />
   <Stat label="Market gaps" value={marketGaps.length} />
@@ -82,6 +95,17 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   <Stat label="Reports" value={reports.length} />
   <Stat label="Goals" value={profile.researchGoals?.length ?? 0} />
   </div>
+  {data.metricCards && data.metricCards.length > 0 && (
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+  {data.metricCards.map((metric) => (
+  <div key={metric.id} className="rounded-xl border border-ink-100 bg-white px-3 py-2">
+  <p className="text-xs text-ink-500">{metric.label}</p>
+  <p className="text-lg font-semibold text-ink-900">{metric.value}</p>
+  {metric.change && <p className="text-xs text-ink-500">{metric.change}</p>}
+  </div>
+  ))}
+  </div>
+  )}
   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
   {visibleInsights[0] && <InsightCard item={visibleInsights[0]} compact />}
   {marketGaps[0] && (
@@ -105,13 +129,11 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   )}
 
   {/* Market Overview charts */}
-  {(charts.marketSharePie || charts.growthPie || charts.pricingPie) && (
+  {overviewCharts.length > 0 && (
   <div className={sectionClass}>
   <h3 className="text-sm font-semibold text-ink-700  uppercase tracking-wide">Market Overview</h3>
   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-  {charts.marketSharePie && <Chart data={charts.marketSharePie} />}
-  {charts.growthPie && <Chart data={charts.growthPie} />}
-  {charts.pricingPie && <Chart data={charts.pricingPie} />}
+  {overviewCharts.map((chart) => <Chart key={chart.title} data={chart} />)}
   </div>
   </div>
   )}
@@ -177,6 +199,10 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   )}
   </div>
   );
+}
+
+function percent(value: number | undefined): string {
+  return value === undefined ? '—' : `${value}%`;
 }
 
 function CompetitorGrid({ competitors, focusId }: { competitors: AnalysisData['competitors']; focusId?: string }) {
