@@ -8,11 +8,11 @@ import { ProductBreakdown } from '../components/ProductBreakdown';
 import { Chart } from '../components/Chart';
 import { InsightCard, MarketGapCard, ReportCard, ActionPlanList, SourcesList } from '../components/AssetCards';
 import { OverviewDashboard } from '../components/OverviewDashboard';
+import { ExplainButton } from '../components/Explain';
 import type { AnalysisData, Competitor, TabKey } from '../types';
 
 export function TabContent({ tab, data }: { tab: TabKey; data: AnalysisData }) {
   switch (tab) {
-  case 'chat':  return null;
   case 'overview':  return <Overview data={data} />;
   case 'competitors':  return <CompetitorsView data={data} />;
   case 'products':  return <ProductsView data={data} />;
@@ -130,6 +130,11 @@ function PricingView({ data }: { data: AnalysisData }) {
   title="Pricing"
   subtitle="Compare price ladders across competitors."
   action={
+  <div className="flex items-center gap-2">
+  <ExplainButton
+    explanation={data.charts.pricingPie.explanation}
+    context={{ section: 'pricing', title: 'Pricing analysis', entity: data.profile.businessName }}
+  />
   <div className="inline-flex flex-wrap rounded-lg border border-ink-200  p-0.5 text-xs bg-white ">
   <button
   onClick={() => setCompetitorId('all')}
@@ -142,6 +147,7 @@ function PricingView({ data }: { data: AnalysisData }) {
   className={`px-2.5 py-1 rounded-md ${competitorId === c.id ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
   >{c.name}</button>
   ))}
+  </div>
   </div>
   }
   />
@@ -218,7 +224,11 @@ function ReportsView({ data }: { data: AnalysisData }) {
 function SourcesView({ data }: { data: AnalysisData }) {
   return (
   <div className="overflow-y-auto scrollbar-thin h-full min-h-0">
-  <PageHeader title="Sources" subtitle="Every claim links back to one of these." />
+  <PageHeader
+    title="Sources"
+    subtitle="Every claim links back to one of these."
+    action={<ExplainButton context={{ section: 'sources', title: 'Source library', entity: data.profile.businessName }} />}
+  />
   <div className="p-4 sm:p-6"><SourcesList sources={data.sources} /></div>
   </div>
   );

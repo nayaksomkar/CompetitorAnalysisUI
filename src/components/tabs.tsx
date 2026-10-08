@@ -8,7 +8,6 @@ export interface TabDef {
 }
 
 export const tabs: TabDef[] = [
-  { key: 'chat',  label: 'Chat',  Icon: (p) => <Icon.Chat {...p} /> },
   { key: 'overview',  label: 'Overview',  Icon: (p) => <Icon.Compass {...p} /> },
   { key: 'competitors',  label: 'Competitors',  Icon: (p) => <Icon.Users {...p} /> },
   { key: 'products',  label: 'Products',  Icon: (p) => <Icon.Box {...p} /> },

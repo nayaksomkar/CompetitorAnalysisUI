@@ -2057,13 +2057,5 @@
       "date": "2026-06-14",
       "snippet": "Nutrilite crossed ₹1,200 Cr revenue with plant-protein positioning…"
     }
-  ],
-  "conversation": [
-    {
-      "id": "prm0",
-      "role": "assistant",
-      "text": "I've finished a first pass on the competitive landscape for **ProV Foods**. Here's a quick orientation:\n\n- The Indian protein market is **₹8,500 Cr and growing ~18% YoY** (RedSeer).\n- **MuscleBlaze** is the DTC leader; **RiteBite** and **Yoga Bar** dominate bars.\n- **Nutrilite** is the plant-protein pioneer — watch their playbook.\n- **Tier-2 cities** are the highest-leverage expansion region.\n\nTry: \"Show me a SWOT for MuscleBlaze\", \"Compare pricing across the top 3\", or \"Where are the biggest gaps?\"",
-      "createdAt": 1789311304166
-    }
   ]
 }

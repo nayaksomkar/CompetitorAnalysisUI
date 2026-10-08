@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Card, Badge } from './primitives';
 import { Icon } from './icons';
 import type { Product } from '../types';
+import { ExplainButton } from './Explain';
 
 export function ProductBreakdown({ product }: { product: Product }) {
   type Maturity = Product['features'][number]['maturity'];
@@ -30,6 +31,10 @@ export function ProductBreakdown({ product }: { product: Product }) {
   <p className="text-sm text-ink-600  mt-1">{product.tagline}</p>
   <p className="text-xs text-ink-500  mt-1">From <span className="font-semibold text-ink-900 ">₹{product.startingPrice?.toLocaleString('en-IN')}</span></p>
   </div>
+  <ExplainButton
+    explanation={product.explanation}
+    context={{ section: 'product', title: product.name, entity: product.name }}
+  />
   </div>
   </div>
 

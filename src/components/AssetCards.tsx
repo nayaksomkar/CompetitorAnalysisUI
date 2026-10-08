@@ -26,7 +26,7 @@ export function InsightCard({ item, compact }: { item: InsightItem; compact?: bo
   <Badge tone={impactTone as 'red' | 'amber' | 'gray'}>Impact: {item.impact}</Badge>
   <span className="text-xs text-ink-500  inline-flex items-center gap-1"><Icon.Target className="w-3.5 h-3.5" />{item.confidence}% confidence</span>
   </div>
-  {item.explanation && <ExplainButton explanation={item.explanation} />}
+  <ExplainButton explanation={item.explanation} context={{ section: 'insight', title: item.title, entity: item.title }} />
   </div>
   <h3 className="font-semibold text-ink-900  mt-3">{item.title}</h3>
   <p className="text-sm text-ink-700  mt-1.5 leading-relaxed">{item.summary}</p>
@@ -43,7 +43,7 @@ export function MarketGapCard({ gap }: { gap: MarketGap }) {
   <Badge tone="violet">Market gap</Badge>
   {gap.estimatedRevenue && <Badge tone="gray">{gap.estimatedRevenue}</Badge>}
   </div>
-  {gap.explanation && <ExplainButton explanation={gap.explanation} />}
+  <ExplainButton explanation={gap.explanation} context={{ section: 'market-gap', title: gap.title, entity: gap.title }} />
   </div>
   <h3 className="font-semibold text-ink-900  mt-3">{gap.title}</h3>
   <p className="text-sm text-ink-700  mt-1.5 leading-relaxed">{gap.description}</p>
@@ -86,7 +86,7 @@ export function ReportCard({ report }: { report: Report }) {
   <Badge tone="gray">{report.pages} pages</Badge>
   <span className="text-xs text-ink-500 ">{report.date}</span>
   </div>
-  {report.explanation && <ExplainButton explanation={report.explanation} />}
+  <ExplainButton explanation={report.explanation} context={{ section: 'report', title: report.title, entity: report.title }} />
   </div>
   <h3 className="font-semibold text-ink-900  mt-3">{report.title}</h3>
   <p className="text-sm text-ink-700  mt-1.5">{report.summary}</p>
@@ -122,7 +122,7 @@ export function ActionPlanList({
   <Card padded={false}>
   <div className="flex items-center justify-between p-5 border-b border-ink-100 ">
   <h3 className="font-semibold text-ink-900 ">{title}</h3>
-  {explanation && <ExplainButton explanation={explanation} />}
+  <ExplainButton explanation={explanation} context={{ section: 'report', title, entity: title }} />
   </div>
   <div className="p-5 space-y-6">
   {order.map((p) =>

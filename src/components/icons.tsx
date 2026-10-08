@@ -26,7 +26,6 @@ export const Icon = {
   Doc: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>),
   Link: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 1 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>),
   External: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><path d="M14 4h6v6M20 4 10 14M5 6v12h12"/></svg>),
-  Chat: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><path d="M21 12a8 8 0 0 1-11.3 7.3L4 21l1.7-5.7A8 8 0 1 1 21 12Z"/></svg>),
   Compass: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><circle cx="12" cy="12" r="9"/><path d="m15 9-2 6-6 2 2-6 6-2Z"/></svg>),
   Star: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><path d="m12 3 2.7 6 6.3.6-4.8 4.2 1.5 6.2L12 16.8 6.3 20l1.5-6.2L3 9.6l6.3-.6L12 3Z"/></svg>),
   Alert: (p: SVGProps<SVGSVGElement>) => (<svg {...base} {...p}><path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18v.01"/></svg>),

@@ -2,16 +2,15 @@ import { useState } from 'react';
 import { Badge, Card } from './primitives';
 import { Icon } from './icons';
 import type { Competitor } from '../types';
+import { ExplainButton } from './Explain';
 
 export function CompetitorCard({
   competitor,
   expanded = false,
-  onExplain,
   explainButton,
 }: {
   competitor: Competitor;
   expanded?: boolean;
-  onExplain?: (c: Competitor) => void;
   explainButton?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(expanded);
@@ -76,12 +75,10 @@ export function CompetitorCard({
   {open ? 'Hide' : 'Show'} SWOT
   <Icon.ChevronDown className={`w-3.5 h-3.5 transition ${open ? 'rotate-180' : ''}`} />
   </button>
-  {explainButton ?? (
-  <button onClick={() => onExplain?.(competitor)} className="text-xs text-ink-500  hover:text-ink-900 inline-flex items-center gap-1">
-  <Icon.Help className="w-3.5 h-3.5" />
-  Explain this
-  </button>
-  )}
+  {explainButton ?? <ExplainButton
+    explanation={competitor.explanation}
+    context={{ section: 'competitor', title: competitor.name, entity: competitor.name }}
+  />}
   </div>
 
   {open && (

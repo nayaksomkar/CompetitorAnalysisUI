@@ -12,12 +12,6 @@
 }
 
 @layer components {
-  .chat-bubble-assistant {
-  @apply bg-ink-50 border border-ink-100 rounded-2xl px-4 py-3;
-  }
-  .chat-bubble-user {
-  @apply bg-brand-50 border border-brand-100 rounded-2xl px-4 py-3;
-  }
   .pill {
   @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
   }

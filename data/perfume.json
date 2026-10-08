@@ -2062,13 +2062,5 @@
       "date": "2026-06-09",
       "snippet": "Paas grew 140% YoY in 2025 with a discovery-led DTC funnel…"
     }
-  ],
-  "conversation": [
-    {
-      "id": "pm0",
-      "role": "assistant",
-      "text": "I've finished a first pass on the competitive landscape for **Scentra**. Here's a quick orientation:\n\n- The Indian premium fragrance market is **₹4,200 Cr and growing ~11% YoY** (Euromonitor).\n- **Jo Malone** is the luxury benchmark; **Forest Essentials** and **Kama** define Ayurvedic premium.\n- **Paas** is the fastest-growing disruptor — watch their playbook.\n- **Tier-2 cities** are the highest-leverage expansion region.\n\nTry: \"Show me a SWOT for Jo Malone\", \"Compare pricing across the top 3\", or \"Where are the biggest gaps?\"",
-      "createdAt": 0
-    }
   ]
 }

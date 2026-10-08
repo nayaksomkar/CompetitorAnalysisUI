@@ -1,11 +1,6 @@
 // =============================================================================
 // Shared domain types for the UI.
-// Mirror of the backend wire contract in `src/api/http.ts` — keep both in sync.
-//
-// Naming convention: UI types use camelCase (e.g. `businessName`) which is the
-// idiomatic shape the React components consume. The backend wire types in
-// `src/api/http.ts` use snake_case (e.g. `business_name`) and are translated
-// by `wireToAnalysis()` on the way in.
+// UI domain types use camelCase; backend wire payloads are translated at the API boundary.
 // =============================================================================
 
 export type ID = string;
@@ -244,22 +239,22 @@ export interface OrchestratorData {
 }
 
 export interface OrchestratorResponse {
-  intent: string;
   status: 'success' | 'partial' | 'error';
-  data: OrchestratorData | null;
-  answer: AnswerBlock | null;
-  missing_data: { field: string; reason: string; severity: string }[];
-  context_update: ContextUpdate | null;
-  evicted_entities: string[];
-  error: string | null;
-  result_counts: {
+  intent?: string;
+  data?: OrchestratorData | null;
+  answer?: AnswerBlock | null;
+  missing_data?: { field: string; reason: string; severity: string }[];
+  context_update?: ContextUpdate | null;
+  evicted_entities?: string[];
+  error?: string | null;
+  result_counts?: {
     requested: number;
     retrieved: number;
     valid: number;
     displayed: number;
   };
-  operations_performed: string[];
-  entity_statuses: {
+  operations_performed?: string[];
+  entity_statuses?: {
     competitors: {
       id: string;
       name: string;
@@ -269,36 +264,6 @@ export interface OrchestratorResponse {
       lookupConfidence?: number;
     }[];
   };
-}
-
-// ---------- Chat ----------
-
-// Chat asset discriminated union. Adding a new asset kind? Add a case here,
-// a renderer in `ChatView`, and place the "Explain this" button underneath.
-export type ChatAsset =
-  | { kind: 'competitor-card'; data: Competitor; explanation?: Explanation }
-  | { kind: 'comparison-table'; data: { title: string; columns: string[]; rows: { name: string; cells: (string | number | boolean)[] }[] }; explanation?: Explanation }
-  | { kind: 'pricing-table'; data: { title: string; tiers: PricingTier[] }; explanation?: Explanation }
-  | { kind: 'product-breakdown'; data: Product; explanation?: Explanation }
-  | { kind: 'chart'; data: ChartData; explanation?: Explanation }
-  | { kind: 'swot'; data: { competitorId?: ID; swot: Competitor['swot']; competitorName?: string }; explanation?: Explanation }
-  | { kind: 'market-gap'; data: MarketGap; explanation?: Explanation }
-  | { kind: 'insight'; data: InsightItem; explanation?: Explanation }
-  | { kind: 'report'; data: Report; explanation?: Explanation }
-  | { kind: 'action-plan'; data: { title: string; items: ActionPlanItem[] }; explanation?: Explanation }
-  | { kind: 'dashboard'; data: AnalysisData; focusText?: string }
-  | { kind: 'lookup-card'; data: LookupCompetitor; explanation?: Explanation }
-  | { kind: 'lookup-comparison'; data: { title: string; competitors: LookupCompetitor[] }; explanation?: Explanation };
-
-export type ChatRole = 'user' | 'assistant' | 'system';
-
-export interface ChatMessage {
-  id: ID;
-  role: ChatRole;
-  text?: string;
-  assets?: ChatAsset[];
-  createdAt: number;
-  streaming?: boolean;
 }
 
 // ---------- Analysis payload (one per questionnaire submission) ----------
@@ -339,13 +304,11 @@ export interface AnalysisData {
   };
   swot?: { strengths: string[]; weaknesses: string[]; opportunities: string[]; threats: string[] };
   sources: Source[];
-  conversation: ChatMessage[];
 }
 
 // ---------- Tabs & samples ----------
 
 export type TabKey =
-  | 'chat'
   | 'overview'
   | 'competitors'
   | 'products'

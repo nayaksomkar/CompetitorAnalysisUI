@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Card } from './primitives';
 import type { ChartData } from '../types';
 import { Icon } from './icons';
+import { ExplainButton } from './Explain';
 
 const W = 360;
 const H = 280;
@@ -42,7 +43,7 @@ export function Chart({ data }: { data: ChartData }) {
 
   if (data.kind === 'pie' && pieSlices.length > 0) {
   return (
-  <ChartCard title={data.title}>
+  <ChartCard data={data}>
   <div className="relative">
   <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-label={data.title}>
   {pieSlices.map((slice) => (
@@ -88,7 +89,7 @@ export function Chart({ data }: { data: ChartData }) {
   if (data.kind === 'area') return <LineAreaChart data={data} filled={true} hover={hover} setHover={setHover} />;
 
   return (
-  <ChartCard title={data.title}>
+  <ChartCard data={data}>
   <div className="flex items-center justify-center h-40 text-sm text-ink-500 ">
   <Icon.EyeOff className="w-4 h-4 mr-2" />No data available
   </div>
@@ -96,11 +97,15 @@ export function Chart({ data }: { data: ChartData }) {
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({ data, children }: { data: ChartData; children: React.ReactNode }) {
   return (
   <Card padded={false} className="overflow-hidden">
-  <div className="px-4 py-3 border-b border-ink-100 ">
-  <h3 className="font-semibold text-sm text-ink-900 ">{title}</h3>
+  <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-ink-100 ">
+  <h3 className="font-semibold text-sm text-ink-900 ">{data.title}</h3>
+  <ExplainButton
+    explanation={data.explanation}
+    context={{ section: 'chart', title: data.title, entity: data.title }}
+  />
   </div>
   <div className="p-4">{children}</div>
   </Card>
@@ -120,7 +125,7 @@ function BarChart({ data, hover, setHover }: { data: ChartData; hover: number | 
  const barW = Math.min(28, (groupW * 0.7) / series.length);
 
   return (
-  <ChartCard title={data.title}>
+  <ChartCard data={data}>
   <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-label={data.title}>
   {[0, 0.25, 0.5, 0.75, 1].map((t) => {
   const y = padT + chartH * (1 - t);
@@ -171,7 +176,7 @@ function RadarChart({ data, hover, setHover }: { data: ChartData; hover: number 
 
   if (n < 3 || series.length === 0) {
   return (
-  <ChartCard title={data.title}>
+  <ChartCard data={data}>
   <div className="flex items-center justify-center h-40 text-sm text-ink-500 ">
   <Icon.EyeOff className="w-4 h-4 mr-2" />Not enough dimensions for radar
   </div>
@@ -183,7 +188,7 @@ function RadarChart({ data, hover, setHover }: { data: ChartData; hover: number 
   const pt = (i: number, r: number) => [cx + r * Math.cos(angle(i)), cy + r * Math.sin(angle(i))];
 
   return (
-  <ChartCard title={data.title}>
+  <ChartCard data={data}>
   <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-label={data.title}>
   {Array.from({ length: levels }, (_, li) => {
   const r = (radius * (li + 1)) / levels;
@@ -242,7 +247,7 @@ function LineAreaChart({
   const toPoint = (p: { value: number }, i: number) => [padL + stepX * i, padT + chartH - (p.value / maxVal) * chartH];
 
   return (
-  <ChartCard title={data.title}>
+  <ChartCard data={data}>
   <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-label={data.title}>
   {[0, 0.25, 0.5, 0.75, 1].map((t) => {
   const y = padT + chartH * (1 - t);
