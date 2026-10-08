@@ -64,7 +64,7 @@ class OrchestratorApi implements ApiClient {
           requested_count: Math.min(profile.competitors?.length || 3, 3),
         },
       }),
-      signal: AbortSignal.timeout(100000),
+      signal: AbortSignal.timeout(160000),
     });
 
     if (!response.ok) {
@@ -104,10 +104,8 @@ class OrchestratorApi implements ApiClient {
       throw new Error('Choose a competitor to compare.');
     }
 
-    if (options.isSavedAnalysis) {
-      const savedResponse = resolveSavedAction(action, data);
-      if (savedResponse) return { response: savedResponse };
-    }
+    const savedResponse = resolveSavedAction(action, data);
+    if (savedResponse) return { response: savedResponse };
 
     const structuredAction: { action: ActionId; entity: string; section: ContextualAction['section']; target?: string } = {
       action: action.action,
@@ -185,7 +183,7 @@ async function requestActionResponse(
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, 30_000);
+  }, 90_000);
   const forwardAbort = () => controller.abort(externalSignal?.reason);
   if (externalSignal?.aborted) forwardAbort();
   else externalSignal?.addEventListener('abort', forwardAbort, { once: true });

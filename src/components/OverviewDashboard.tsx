@@ -16,6 +16,19 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   // Build radar chart data from competitor metrics (no invented numbers)
   const radarChart: ChartData | null = useMemo(() => {
   if (competitors.length < 2) return null;
+  const dimensions = [
+    {
+      label: 'Share',
+      value: (competitor: (typeof competitors)[number]) => competitor.marketShare,
+    },
+    {
+      label: 'Growth',
+      value: (competitor: (typeof competitors)[number]) => competitor.growthRate,
+    },
+  ].filter((dimension) => competitors.every(
+    (competitor) => dimension.value(competitor) !== undefined,
+  ));
+  if (!dimensions.length) return null;
   return {
   title: 'Competitor Positioning',
   kind: 'radar',
@@ -23,14 +36,12 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
   id: c.id,
   name: c.name,
   color: PALETTE[i % PALETTE.length],
-  points: [
-  { label: 'Share', value: Math.min(c.marketShare ?? 0, 100) },
-  { label: 'Growth', value: Math.min(c.growthRate ?? 0, 100) },
-  { label: 'Strengths', value: Math.min((c.strengths?.length ?? 0) * 25, 100) },
-  { label: 'Weaknesses', value: Math.min((c.weaknesses?.length ?? 0) * 25, 100) },
-  { label: 'Opportunities', value: Math.min((c.swot?.opportunities?.length ?? 0) * 25, 100) },
-  { label: 'Threats', value: Math.min((c.swot?.threats?.length ?? 0) * 25, 100) },
-  ],
+  points: dimensions.flatMap((dimension) => {
+    const value = dimension.value(c);
+    return value === undefined
+      ? []
+      : [{ label: dimension.label, value: Math.min(value, 100) }];
+  }),
   })),
   };
   }, [competitors]);

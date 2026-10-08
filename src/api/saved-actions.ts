@@ -102,7 +102,7 @@ function showPricing(
   if (!evidence.length && !tiers.length) return null;
 
   return response(
-    `Saved pricing information for ${action.entity}.`,
+    `Pricing information in the current analysis for ${action.entity}.`,
     evidence,
     data.charts.pricing.explanation?.sources,
     { pricingTiers: tiers, pricingChart: data.charts.pricing },
@@ -123,7 +123,7 @@ function showMarketPosition(
     if (competitor.description) evidence.push({ label: 'Profile', detail: competitor.description });
     if (!evidence.length) return null;
     return response(
-      competitor.explanation?.summary || `Saved market position for ${competitor.name}.`,
+      competitor.explanation?.summary || `Market position in the current analysis for ${competitor.name}.`,
       evidence,
       competitor.explanation?.sources,
       { competitor },
@@ -137,7 +137,7 @@ function showMarketPosition(
     evidence.push({ label: metric.label, detail: `${String(metric.value)}${metric.change ? ` (${metric.change})` : ''}` });
   }
   if (!evidence.length) return null;
-  return response(`Saved market position for ${data.businessName}.`, evidence, data.sources, { positioning: data.positioning });
+  return response(`Market position in the current analysis for ${data.businessName}.`, evidence, data.sources, { positioning: data.positioning });
 }
 
 function showList(
@@ -148,7 +148,7 @@ function showList(
   if (!items?.length) return null;
   const singular = label === 'weaknesses' ? 'Weakness' : 'Strength';
   return response(
-    `Saved ${label} for ${entity}.`,
+    `${label} in the current analysis for ${entity}.`,
     items.map((detail, index) => ({ label: `${singular} ${index + 1}`, detail })),
   );
 }
@@ -185,7 +185,7 @@ function showPriceGaps(data: AnalysisData): OrchestratorResponse | null {
   const lowest = sorted[0];
   const highest = sorted[sorted.length - 1];
   return response(
-    `Saved pricing spans ${lowest.value} to ${highest.value}; the observed gap is ${highest.value - lowest.value}.`,
+    `Current analysis pricing spans ${lowest.value} to ${highest.value}; the observed gap is ${highest.value - lowest.value}.`,
     [
       { label: 'Lowest listed price', detail: `${lowest.label}: ${lowest.value}` },
       { label: 'Highest listed price', detail: `${highest.label}: ${highest.value}` },
@@ -209,7 +209,7 @@ function showMarketGaps(action: ContextualAction, data: AnalysisData): Orchestra
     ...(gap.explanation?.evidence ?? []),
   ]);
   return response(
-    gaps.map((gap) => gap.explanation?.summary).filter(Boolean).join(' ') || `Saved market-gap analysis for ${action.entity}.`,
+    gaps.map((gap) => gap.explanation?.summary).filter(Boolean).join(' ') || `Market-gap analysis in the current analysis for ${action.entity}.`,
     evidence,
     gaps.flatMap((gap) => gap.explanation?.sources ?? []),
     { marketGaps: gaps },
@@ -257,7 +257,7 @@ function showRelatedProducts(action: ContextualAction, data: AnalysisData): Orch
     ...(product.pricingModel ? [{ label: 'Pricing model', detail: product.pricingModel }] : []),
     ...product.features.map((feature) => ({ label: feature.name, detail: feature.description })),
   ]);
-  return response(`Saved products related to ${action.entity}.`, evidence, undefined, { products });
+  return response(`Products in the current analysis related to ${action.entity}.`, evidence, undefined, { products });
 }
 
 function showSources(
@@ -272,7 +272,7 @@ function showSources(
   const evidence = sources.flatMap((source) => source.snippet
     ? [{ label: source.title, detail: source.snippet }]
     : []);
-  return response(`Saved sources for ${action.entity}.`, evidence, sources, { sources });
+  return response(`Sources in the current analysis for ${action.entity}.`, evidence, sources, { sources });
 }
 
 function showChart(
