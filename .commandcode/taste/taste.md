@@ -1,2 +1,2 @@
 # Taste File
-- Prefers verifying API endpoint correctness empirically (curl/openapi spec) rather than trusting documentation alone when tracing cross-service call mismatches. Confidence: 0.7
+- Prefers verifying service behavior empirically — real requests against live deployments plus the live OpenAPI spec — never trusting documentation alone ("Do not assume what it returns from its documentation alone. Actually make requests and inspect the real responses."), both when testing backend services before changing the orchestrator and when tracing cross-service call mismatches. Confidence: 0.85
