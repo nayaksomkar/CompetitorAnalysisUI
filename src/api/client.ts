@@ -1,7 +1,8 @@
 import type { ActionId, ContextualAction } from '../actions';
-import { isActionId } from '../actions';
+import { ACTION_REGISTRY, isActionId } from '../actions';
 import { getActiveBaseUrl } from '../components/EndpointSettings';
 import { getLocalSample, loadSample } from '../data/github-loader';
+import { resolveSavedAction } from './saved-actions';
 import type { SampleId } from '../data';
 import type {
   ActionPlanItem,
@@ -29,14 +30,21 @@ export interface BootstrapResult {
   missingData: NonNullable<OrchestratorResponse['missing_data']>;
 }
 
+export interface ActionExecutionOptions {
+  isSavedAnalysis?: boolean;
+  signal?: AbortSignal;
+}
+
 export interface ApiClient {
   getLocalSample(sampleId: SampleId): AnalysisData | null;
   loadSample(sampleId: SampleId): Promise<AnalysisData>;
   bootstrap(profile: BusinessProfile): Promise<BootstrapResult>;
-  executeAction(action: ContextualAction, data: AnalysisData): Promise<ActionResult>;
+  executeAction(action: ContextualAction, data: AnalysisData, options?: ActionExecutionOptions): Promise<ActionResult>;
 }
 
 class OrchestratorApi implements ApiClient {
+  private readonly sessionId = `ui-${crypto.randomUUID()}`;
+
   getLocalSample(sampleId: SampleId): AnalysisData | null {
     return getLocalSample(sampleId);
   }
@@ -52,19 +60,7 @@ class OrchestratorApi implements ApiClient {
       body: JSON.stringify({
         parser_input: {
           intent: 'bootstrap',
-          form_input: {
-            business_name: profile.businessName,
-            idea: profile.idea,
-            industry: profile.industry,
-            products_services: profile.productsServices ?? [],
-            target_customers: profile.targetCustomers ?? '',
-            geography: profile.geography ?? '',
-            pricing: profile.pricing ?? '',
-            business_model: profile.businessModel ?? '',
-            competitors: profile.competitors ?? [],
-            differentiators: profile.differentiators ?? '',
-            research_goals: profile.researchGoals ?? [],
-          },
+          form_input: toFormInput(profile),
           requested_count: Math.min(profile.competitors?.length || 3, 3),
         },
       }),
@@ -93,7 +89,11 @@ class OrchestratorApi implements ApiClient {
     };
   }
 
-  async executeAction(action: ContextualAction, data: AnalysisData): Promise<ActionResult> {
+  async executeAction(
+    action: ContextualAction,
+    data: AnalysisData,
+    options: ActionExecutionOptions = {},
+  ): Promise<ActionResult> {
     if (!isActionId(action.action)) {
       throw new Error('Unsupported action.');
     }
@@ -102,6 +102,11 @@ class OrchestratorApi implements ApiClient {
     }
     if (action.action === 'compare_competitors' && !action.target?.trim()) {
       throw new Error('Choose a competitor to compare.');
+    }
+
+    if (options.isSavedAnalysis) {
+      const savedResponse = resolveSavedAction(action, data);
+      if (savedResponse) return { response: savedResponse };
     }
 
     const structuredAction: { action: ActionId; entity: string; section: ContextualAction['section']; target?: string } = {
@@ -116,14 +121,15 @@ class OrchestratorApi implements ApiClient {
         ? 'explain'
         : 'question';
 
-    const response = await fetch(`${getActiveBaseUrl()}/api/v1/parser/execute`, {
+    const payload = await requestActionResponse(`${getActiveBaseUrl()}/api/v1/parser/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         parser_input: {
           intent,
+          message: actionMessage(action, data),
           action: structuredAction,
-          session_id: `ui-${crypto.randomUUID()}`,
+          session_id: this.sessionId,
           context_update: {
             version: 1,
             business: {
@@ -134,8 +140,8 @@ class OrchestratorApi implements ApiClient {
               idea: data.profile.idea,
             },
             entities: {
-              competitors: data.competitors.map((competitor) => competitor.id),
-              focus: action.entity,
+              competitors: data.competitors.map((competitor) => slug(competitor.name)),
+              focus: slug(action.entity),
             },
             result_meta: {
               requested_count: data.competitors.length,
@@ -153,29 +159,12 @@ class OrchestratorApi implements ApiClient {
               model: data.profile.businessModel,
               idea: data.profile.idea,
             },
-            competitors: data.competitors,
-            pricingTiers: data.pricingTiers,
-            marketGaps: data.marketGaps,
-            insights: data.insights,
-            charts: data.charts,
-            sources: data.sources,
+            ...data,
           },
-          form_input: {
-            business_name: data.profile.businessName,
-            idea: data.profile.idea,
-            industry: data.profile.industry,
-          },
+          form_input: toFormInput(data.profile),
         },
       }),
-      signal: AbortSignal.timeout(100000),
-    });
-
-    if (!response.ok) {
-      const details = await response.text();
-      throw new Error(`Orchestrator returned ${response.status}${details ? `: ${details.slice(0, 200)}` : ''}`);
-    }
-
-    const payload: unknown = await response.json();
+    }, options.signal);
     if (!isOrchestratorResponse(payload)) {
       throw new Error('The orchestrator returned an invalid action response.');
     }
@@ -186,7 +175,80 @@ class OrchestratorApi implements ApiClient {
   }
 }
 
+async function requestActionResponse(
+  request: RequestInfo | URL,
+  init: RequestInit,
+  externalSignal?: AbortSignal,
+): Promise<unknown> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 30_000);
+  const forwardAbort = () => controller.abort(externalSignal?.reason);
+  if (externalSignal?.aborted) forwardAbort();
+  else externalSignal?.addEventListener('abort', forwardAbort, { once: true });
+
+  try {
+    const response = await fetch(request, { ...init, signal: controller.signal });
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error(`Orchestrator returned ${response.status}${details ? `: ${details.slice(0, 200)}` : ''}`);
+    }
+    return await response.json() as unknown;
+  } catch (error) {
+    if (timedOut) throw new Error('The action request timed out. Please retry.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', forwardAbort);
+  }
+}
+
 export const api: ApiClient = new OrchestratorApi();
+
+function actionMessage(action: ContextualAction, data: AnalysisData): string {
+  const selectedCompetitor = data.competitors.find((competitor) =>
+    competitor.name.trim().toLowerCase() === action.entity.trim().toLowerCase());
+  const targetName = action.target?.trim().toLowerCase();
+  const targetCompetitor = targetName
+    ? data.competitors.find((competitor) =>
+      competitor.name.trim().toLowerCase() === targetName)
+    : undefined;
+  if (action.action === 'compare_competitors' && selectedCompetitor && targetCompetitor) {
+    return `Compare ${selectedCompetitor.name} with ${targetCompetitor.name} using the current analysis.`;
+  }
+  if (action.action === 'compare_competitors' && targetCompetitor) {
+    const peer = data.competitors
+      .filter((competitor) => competitor.id !== targetCompetitor.id)
+      .sort((left, right) => (right.marketShare ?? 0) - (left.marketShare ?? 0))[0];
+    if (peer) return `Compare ${peer.name} with ${targetCompetitor.name} using the current analysis.`;
+  }
+  if (action.action === 'compare_competitors') {
+    return 'Compare the selected competitors in the current analysis.';
+  }
+  const label = ACTION_REGISTRY[action.action].label;
+  const isPrimaryBusiness = action.entity.trim().toLowerCase() === data.profile.businessName.trim().toLowerCase();
+  const subject = selectedCompetitor?.name ?? (isPrimaryBusiness ? 'the selected business' : 'the selected context');
+  return `${label} for ${subject} using the current analysis.`;
+}
+
+function toFormInput(profile: BusinessProfile) {
+  return {
+    business_name: profile.businessName,
+    idea: profile.idea,
+    industry: profile.industry,
+    products_services: profile.productsServices ?? [],
+    target_customers: profile.targetCustomers ?? '',
+    geography: profile.geography ?? '',
+    pricing: profile.pricing ?? '',
+    business_model: profile.businessModel ?? '',
+    competitors: profile.competitors ?? [],
+    differentiators: profile.differentiators ?? '',
+    research_goals: profile.researchGoals ?? [],
+  };
+}
 
 function mapAnalysisData(raw: Record<string, unknown>, profile: BusinessProfile): AnalysisData {
   const chartsRaw = record(raw.charts);
@@ -458,8 +520,61 @@ function mapSwot(value: unknown): AnalysisData['swot'] {
 }
 
 function isOrchestratorResponse(value: unknown): value is OrchestratorResponse {
+  if (!isRecord(value)
+    || (value.status !== 'success' && value.status !== 'partial' && value.status !== 'error')) {
+    return false;
+  }
+  if (value.data !== undefined && value.data !== null && !isRecord(value.data)) return false;
+  if (value.explanation !== undefined && value.explanation !== null && typeof value.explanation !== 'string') return false;
+  if (value.error !== undefined && value.error !== null && typeof value.error !== 'string') return false;
+  if (value.answer !== undefined && value.answer !== null && !isAnswerBlock(value.answer)) return false;
+  if (value.missing_data !== undefined
+    && (!Array.isArray(value.missing_data) || !value.missing_data.every(isMissingDataItem))) return false;
+  return true;
+}
+
+function isAnswerBlock(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (value.summary !== undefined && typeof value.summary !== 'string') return false;
+  for (const key of ['question', 'explanation']) {
+    if (value[key] !== undefined && value[key] !== null && typeof value[key] !== 'string') return false;
+  }
+  if (value.evidence !== undefined
+    && (!Array.isArray(value.evidence) || !value.evidence.every((item) =>
+      isRecord(item) && typeof item.label === 'string' && typeof item.detail === 'string'))) return false;
+  if (value.sources !== undefined && !isSourceList(value.sources)) return false;
+  return ['competitors', 'comparedTo'].every((key) =>
+    value[key] === undefined || Array.isArray(value[key]) && value[key].every(isLookupCompetitor));
+}
+
+function isSourceList(value: unknown): boolean {
+  return Array.isArray(value) && value.every((source) =>
+    isRecord(source)
+    && typeof source.id === 'string'
+    && typeof source.title === 'string'
+    && (source.url === undefined || typeof source.url === 'string')
+    && (source.snippet === undefined || typeof source.snippet === 'string'));
+}
+
+function isLookupCompetitor(value: unknown): boolean {
   return isRecord(value)
-    && (value.status === 'success' || value.status === 'partial' || value.status === 'error');
+    && typeof value.id === 'string'
+    && typeof value.name === 'string'
+    && (value.source === 'web' || value.source === 'context' || value.source === '')
+    && isRecord(value.profile)
+    && typeof value.profile.description === 'string'
+    && Array.isArray(value.profile.strengths)
+    && value.profile.strengths.every((item) => typeof item === 'string')
+    && Array.isArray(value.profile.weaknesses)
+    && value.profile.weaknesses.every((item) => typeof item === 'string')
+    && isSourceList(value.sources);
+}
+
+function isMissingDataItem(value: unknown): boolean {
+  return isRecord(value)
+    && typeof value.field === 'string'
+    && typeof value.reason === 'string'
+    && (value.severity === undefined || typeof value.severity === 'string');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

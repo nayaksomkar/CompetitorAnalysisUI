@@ -1,0 +1,79 @@
+{
+  "fixture_version": 1,
+  "created_at": "2026-10-08T23:35:31Z",
+  "fixture_type": "dynamic_test_input_only",
+  "provenance": {
+    "analysis_source": "real_backend_test",
+    "is_mock": false,
+    "analysis_snapshot_included": false,
+    "snapshot_exclusion_reason": "The live bootstrap returned HTTP 200 with partial status and zero of three competitors retrieved. Its narrative included unsupported business and market statistics that could not be verified against returned sources, so it is not retained as reusable analysis data."
+  },
+  "request": {
+    "parser_input": {
+      "intent": "bootstrap",
+      "form_input": {
+        "business_name": "FlowPilot",
+        "idea": "A lightweight operations platform for small logistics and field-service teams, combining job tracking, customer updates, and proof of delivery.",
+        "industry": "B2B SaaS — workflow automation and field operations",
+        "products_services": [
+          "Dispatch board",
+          "customer notifications",
+          "proof-of-delivery capture",
+          "workflow templates",
+          "and operations analytics."
+        ],
+        "target_customers": "Small logistics operators, regional distributors, and field-service companies with 5–50 employees.",
+        "geography": "India, initially Bengaluru, Hyderabad, Pune, and Chennai.",
+        "business_model": "B2B SaaS subscription.",
+        "pricing": "Starter ₹1,499/team/month; Growth ₹4,999/team/month; Enterprise custom pricing. User-provided test assumptions, not verified competitor prices.",
+        "competitors": [
+          "Zoho Creator",
+          "ClickUp",
+          "Fieldproxy"
+        ],
+        "differentiators": "Simple onboarding, messaging-oriented customer updates, low setup effort, and workflows for regional logistics.",
+        "research_goals": [
+          "Identify relevant competitors, compare positioning and verified pricing where available, find potential market gaps, and recommend a realistic 90-day validation and MVP plan."
+        ]
+      },
+      "requested_count": 3
+    }
+  },
+  "live_test": {
+    "method": "POST",
+    "endpoint": "https://competitorengine.onrender.com/api/v1/parser/execute",
+    "http_status": 200,
+    "response_status": "partial",
+    "requested_competitors": 3,
+    "retrieved_competitors": 0,
+    "observed_missing_data": [
+      "Only 0 of 3 requested competitors could be retrieved",
+      "SWOT analysis incomplete",
+      "No competitor data available"
+    ],
+    "observed_ui": {
+      "competitors": 0,
+      "products": 0,
+      "pricing_tiers": 0,
+      "market_gaps": 0,
+      "insights": 0,
+      "sources": 0
+    },
+    "dynamic_action_test": {
+      "action": "show_supporting_data",
+      "entity": "FlowPilot",
+      "section": "sources",
+      "outcome": "The UI sent an action request, which did not complete before the client 30-second timeout. The loading state cleared and a retry option appeared."
+    },
+    "unavailable_fields": [
+      {
+        "field": "complete_analysis_snapshot",
+        "reason": "The partial response contained unsourced business and market statistics; retaining it as a reusable analysis fixture could misrepresent unverified claims as facts."
+      },
+      {
+        "field": "verified_competitor_data",
+        "reason": "The backend retrieved zero competitors and the UI displayed no competitor records."
+      }
+    ]
+  }
+}

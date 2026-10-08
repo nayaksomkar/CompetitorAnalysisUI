@@ -175,7 +175,7 @@ export interface AnalysisMetric {
 export interface LookupCompetitor {
   id: ID;
   name: string;
-  source: 'web' | 'context';
+  source: 'web' | 'context' | '';
   lookupConfidence?: number;
   profile: {
     description: string;
@@ -220,11 +220,11 @@ export interface ContextUpdate {
 }
 
 export interface AnswerBlock {
-  summary: string;
+  summary?: string;
   competitors?: LookupCompetitor[];
   comparedTo?: LookupCompetitor[];
-  question?: string;
-  explanation?: string;
+  question?: string | null;
+  explanation?: string | null;
   evidence?: { label: string; detail: string }[];
   sources?: Source[];
 }
@@ -250,7 +250,8 @@ export interface OrchestratorResponse {
   intent?: string;
   data?: OrchestratorData | null;
   answer?: AnswerBlock | null;
-  missing_data?: { field: string; reason: string; severity: string }[];
+  explanation?: string | null;
+  missing_data?: { field: string; reason: string; severity?: string }[];
   context_update?: ContextUpdate | null;
   evicted_entities?: string[];
   error?: string | null;

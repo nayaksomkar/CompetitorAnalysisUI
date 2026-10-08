@@ -1,14 +1,13 @@
 # Competitive Insights — AI Competitive Analysis UI
 
-A React + TypeScript app that helps you analyze your competitors. Think ChatGPT meets business research — you answer a few questions about your business, and get back interactive charts, competitor profiles, SWOT analyses, and action plans.
+A React + TypeScript dashboard for competitor research. Submit a business profile to explore interactive charts, competitor profiles, SWOT analyses, and action plans, with contextual explanations and predefined actions.
 
 ## What It Does
 
 - **Ask about your business** — Fill out a short form (or pick a sample)
 - **Get a full analysis** — Competitors, market gaps, pricing comparisons, insights
-- **Chat with your data** — Ask follow-up questions, get interactive answers
-- **9 tabs to explore** — Overview, Competitors, Products, Pricing, Market Gaps, Insights, Reports, Sources
-- **"Explain this" everywhere** — Click any chart, table, or insight to see why it matters
+- **8 tabs to explore** — Overview, Competitors, Products, Pricing, Market Gaps, Insights, Reports, Sources
+- **Contextual AI controls** — Explain a selected section and explore it using predefined actions
 
 ## Quick Start
 
@@ -117,7 +116,7 @@ src/
 
 - No external UI library — custom components with Tailwind CSS
 - No charting library — custom SVG charts (bar, line, area, radar, pie)
-- Chat-first, but everything has a home in the tabs
+- Analysis-first, with contextual actions instead of free-form chat
 - Sources are always visible — trust over polish
 
 ## License

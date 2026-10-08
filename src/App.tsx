@@ -103,7 +103,8 @@ export default function App() {
   return (
   <ExplainPanelProvider
   data={data}
-  onAction={(action, currentData) => api.executeAction(action, currentData)}
+  isSavedAnalysis={sampleId !== null}
+  onAction={(action, currentData, options) => api.executeAction(action, currentData, options)}
   onActionResult={(response, action) => {
   setActionResult({ response, action });
   setTab(getActionTab(action.action));
@@ -153,6 +154,11 @@ export default function App() {
   <ul className="mt-1 list-disc pl-5">
   {missingData.map((item, index) => <li key={`${item.field}-${index}`}>{item.field}: {item.reason}</li>)}
   </ul>
+  </div>
+  )}
+  {sampleId === null && data.sources.length === 0 && (
+  <div role="status" className="shrink-0 px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-900">
+  This analysis has no supporting sources. Treat narrative claims and metrics as unverified.
   </div>
   )}
   {actionResult && (

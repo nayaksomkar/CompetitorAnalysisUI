@@ -15,14 +15,19 @@ export function ActionResultView({
     ? `${ACTION_REGISTRY[action.action].label} ${action.target}`
     : ACTION_REGISTRY[action.action].label;
   const answer = result.answer;
+  const explanation = result.explanation ?? answer?.explanation;
   const competitors = [...(answer?.competitors ?? []), ...(answer?.comparedTo ?? [])];
+  const hasData = Boolean(result.data && Object.keys(result.data).length);
   const hasDetails = Boolean(
     answer?.summary
-    || answer?.explanation
+    || answer?.question
+    || explanation
     || answer?.evidence?.length
     || answer?.sources?.length
     || competitors.length
-    || result.data,
+    || hasData
+    || result.missing_data?.length
+    || result.error,
   );
 
   return (
@@ -38,7 +43,23 @@ export function ActionResultView({
       </div>
 
       {answer?.summary && <p className="mt-2 text-sm leading-relaxed text-ink-800">{answer.summary}</p>}
-      {answer?.explanation && <p className="mt-2 text-sm leading-relaxed text-ink-700">{answer.explanation}</p>}
+      {answer?.question && <p className="mt-2 text-sm font-medium text-ink-700">{answer.question}</p>}
+      {explanation && explanation !== answer?.summary && <p className="mt-2 text-sm leading-relaxed text-ink-700">{explanation}</p>}
+
+      {result.error && (
+        <p role="alert" className="mt-2 text-sm text-rose-700">{result.error}</p>
+      )}
+
+      {result.missing_data?.length ? (
+        <section role="status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="font-semibold">{result.status === 'partial' ? 'Partial result — some information is missing' : 'Some information is unavailable'}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {result.missing_data.map((item, index) => (
+              <li key={`${item.field}-${index}`}>{item.field}: {item.reason}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {answer?.evidence?.length ? (
         <ul className="mt-2 space-y-1">
@@ -75,12 +96,18 @@ export function ActionResultView({
               {source.url
                 ? <a className="text-emerald-700 hover:underline" href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
                 : <span className="text-ink-600">{source.title}</span>}
+              {(source.publisher || source.date || source.snippet) && (
+                <p className="mt-0.5 text-ink-500">
+                  {[source.publisher, source.date].filter(Boolean).join(' · ')}
+                  {source.snippet ? `${source.publisher || source.date ? ' · ' : ''}${source.snippet}` : ''}
+                </p>
+              )}
             </li>
           ))}
         </ul>
       ) : null}
 
-      {result.data && (
+      {hasData && result.data && (
         <details className="mt-2" open>
           <summary className="cursor-pointer text-xs font-medium text-ink-600">View returned analysis data</summary>
           <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-white p-3 text-[11px] text-ink-700">{JSON.stringify(result.data, null, 2)}</pre>
@@ -88,7 +115,7 @@ export function ActionResultView({
       )}
 
       {!hasDetails && (
-        <p className="mt-2 text-sm text-ink-600">The orchestrator completed this action without returning displayable data.</p>
+        <p className="mt-2 text-sm text-ink-600">The action completed, but no displayable data was returned.</p>
       )}
     </section>
   );

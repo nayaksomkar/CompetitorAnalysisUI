@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './icons';
 import type { AnalysisData, OrchestratorResponse } from '../types';
 import {
@@ -17,47 +17,88 @@ const ExplainPanelContext = createContext<ExplainPanelApi | null>(null);
 
 export function ExplainPanelProvider({
   data,
+  isSavedAnalysis,
   onAction,
   onActionResult,
   children,
 }: {
   data: AnalysisData;
-  onAction: (action: ContextualAction, data: AnalysisData) => Promise<ActionResult>;
+  isSavedAnalysis: boolean;
+  onAction: (action: ContextualAction, data: AnalysisData, options: { isSavedAnalysis: boolean; signal: AbortSignal }) => Promise<ActionResult>;
   onActionResult: (response: OrchestratorResponse, action: ContextualAction) => void;
   children: ReactNode;
 }) {
   const [context, setContext] = useState<ExplainContext | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryAction, setRetryAction] = useState<ContextualAction | null>(null);
+  const requestId = useRef(0);
+  const activeController = useRef<AbortController | null>(null);
+
+  const cancelPendingAction = () => {
+    requestId.current += 1;
+    activeController.current?.abort();
+    activeController.current = null;
+    setPendingAction(null);
+  };
+
+  useEffect(() => () => {
+    requestId.current += 1;
+    activeController.current?.abort();
+    activeController.current = null;
+  }, []);
 
   const runAction = async (action: ContextualAction) => {
-    if (!isActionId(action.action) || pendingAction) return;
-    setPendingAction(action.action);
+    if (!isActionId(action.action) || activeController.current) return;
+    const currentRequestId = ++requestId.current;
+    const controller = new AbortController();
+    activeController.current = controller;
+    const actionKey = `${action.action}:${action.target ?? ''}`;
+    setPendingAction(actionKey);
     setError(null);
+    setRetryAction(null);
     try {
-      const result = await onAction(action, data);
-      if (result.response.status === 'error' || result.response.status === 'partial' && result.response.error) {
-        throw new Error(result.response.error ?? 'The orchestrator returned an incomplete result.');
-      }
+      const result = await onAction(action, data, { isSavedAnalysis, signal: controller.signal });
+      if (currentRequestId !== requestId.current) return;
+      if (result.response.status === 'error') throw new Error(result.response.error ?? 'The action could not be completed.');
       onActionResult(result.response, action);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'The action could not be completed.');
+      if (currentRequestId === requestId.current) {
+        setError(actionError instanceof Error ? actionError.message : 'The action could not be completed.');
+        setRetryAction(action);
+      }
     } finally {
-      setPendingAction(null);
+      if (currentRequestId === requestId.current) {
+        activeController.current = null;
+        setPendingAction(null);
+      }
     }
+  };
+
+  const openContext = (value: ExplainContext) => {
+    cancelPendingAction();
+    setContext(value);
+    setError(null);
+    setRetryAction(null);
+  };
+  const closePanel = () => {
+    cancelPendingAction();
+    setContext(null);
+    setError(null);
+    setRetryAction(null);
   };
 
   const actions = context ? getContextualActions(context, data) : [];
 
   return (
-    <ExplainPanelContext.Provider value={{ openExplain: (value) => { setContext(value); setError(null); } }}>
+    <ExplainPanelContext.Provider value={{ openExplain: openContext }}>
       {children}
       {context && (
         <>
           <button
             aria-label="Close explanation panel"
             className="fixed inset-0 z-40 cursor-default bg-black/20"
-            onClick={() => setContext(null)}
+            onClick={closePanel}
           />
           <aside
             role="dialog"
@@ -71,7 +112,7 @@ export function ExplainPanelProvider({
                 <p className="mt-1 text-sm text-ink-500">{context.title}</p>
               </div>
               <button
-                onClick={() => setContext(null)}
+                onClick={closePanel}
                 className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 hover:text-ink-900"
                 aria-label="Close"
               >
@@ -116,7 +157,7 @@ export function ExplainPanelProvider({
                 <div className="mt-3 flex flex-col gap-2">
                   {actions.map((action, index) => {
                     const key = `${action.id}-${action.target ?? index}`;
-                    const busy = pendingAction === action.id;
+                    const busy = pendingAction === `${action.id}:${action.target ?? ''}`;
                     return (
                       <button
                         key={key}
@@ -135,7 +176,19 @@ export function ExplainPanelProvider({
                     );
                   })}
                 </div>
-                {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
+                {error && (
+                  <div role="alert" className="mt-3 flex items-center justify-between gap-3 text-sm text-rose-700">
+                    <p>{error}</p>
+                    {retryAction && (
+                      <button
+                        className="shrink-0 font-medium underline"
+                        onClick={() => void runAction(retryAction)}
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                )}
               </section>
             </div>
           </aside>
