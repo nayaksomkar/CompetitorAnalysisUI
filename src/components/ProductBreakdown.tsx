@@ -29,7 +29,12 @@ export function ProductBreakdown({ product }: { product: Product }) {
   <Badge tone="gray">{product.pricingModel}</Badge>
   </div>
   <p className="text-sm text-ink-600  mt-1">{product.tagline}</p>
-  <p className="text-xs text-ink-500  mt-1">From <span className="font-semibold text-ink-900 ">₹{product.startingPrice?.toLocaleString('en-IN')}</span></p>
+  <p className="text-xs text-ink-500  mt-1">
+    From{' '}
+    <span className="font-semibold text-ink-900 ">
+      {product.startingPrice === undefined ? 'No data provided' : `₹${product.startingPrice.toLocaleString('en-IN')}`}
+    </span>
+  </p>
   </div>
   <ExplainButton
     explanation={product.explanation}
@@ -70,21 +75,27 @@ export function ProductBreakdown({ product }: { product: Product }) {
   <div className="min-w-0">
   <div className="flex items-center gap-2 flex-wrap">
   <p className="font-medium text-ink-900 ">{f.name}</p>
-  <MaturityBadge maturity={f.maturity} />
+  {f.maturity && <MaturityBadge maturity={f.maturity} />}
   </div>
   <p className="text-sm text-ink-600  mt-0.5">{f.description}</p>
   </div>
   <div className="w-40 shrink-0">
-  <div className="flex items-center justify-between text-xs text-ink-500  mb-1">
-  <span>Adoption</span>
-  <span className="font-semibold text-ink-900 ">{f.adoption}%</span>
-  </div>
-  <div className="h-1.5 rounded-full bg-ink-100  overflow-hidden">
-  <div
-  className="h-full bg-emerald-500 transition-all"
-  style={{ width: `${f.adoption}%` }}
-  />
-  </div>
+  {f.adoption === undefined ? (
+    <span className="text-xs text-ink-400 italic">No data provided</span>
+  ) : (
+    <>
+      <div className="flex items-center justify-between text-xs text-ink-500  mb-1">
+      <span>Adoption</span>
+      <span className="font-semibold text-ink-900 ">{f.adoption}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-ink-100  overflow-hidden">
+      <div
+      className="h-full bg-emerald-500 transition-all"
+      style={{ width: `${f.adoption}%` }}
+      />
+      </div>
+    </>
+  )}
   </div>
   </div>
   </li>
@@ -97,14 +108,13 @@ export function ProductBreakdown({ product }: { product: Product }) {
   );
 }
 
-function MaturityBadge({ maturity }: { maturity: Product['features'][number]['maturity'] }) {
+function MaturityBadge({ maturity }: { maturity: NonNullable<Product['features'][number]['maturity']> }) {
   const map: Record<NonNullable<Product['features'][number]['maturity']>, { tone: 'green' | 'amber' | 'red' | 'blue' | 'gray'; label: string }> = {
   GA: { tone: 'green', label: 'GA' },
   Beta: { tone: 'amber', label: 'Beta' },
   Roadmap: { tone: 'blue', label: 'Roadmap' },
   Deprecated: { tone: 'gray', label: 'Deprecated' },
   };
-  const m = maturity ?? 'GA';
-  const { tone, label } = map[m];
+  const { tone, label } = map[maturity];
   return <Badge tone={tone}>{label}</Badge>;
 }

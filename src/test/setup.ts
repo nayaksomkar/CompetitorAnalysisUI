@@ -7,6 +7,13 @@
  */
 import { vi } from 'vitest';
 
+if (typeof AbortSignal.timeout !== 'function') {
+  Object.defineProperty(AbortSignal, 'timeout', {
+    configurable: true,
+    value: (_delay: number) => new AbortController().signal,
+  });
+}
+
 // jsdom/happy-dom sometimes lacks matchMedia; stub it so Tailwind/utility
 // components that read it do not throw during tests.
 if (typeof window !== 'undefined' && !window.matchMedia) {

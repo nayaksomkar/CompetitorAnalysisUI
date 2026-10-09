@@ -264,7 +264,7 @@ function mapAnalysisData(raw: Record<string, unknown>, profile: BusinessProfile)
     industry: profile.industry,
     idea: profile.idea,
     businessSummary: text(raw.business_summary) || undefined,
-    executiveSummary: text(raw.executive_summary) || (typeof raw.report === 'string' ? raw.report : undefined),
+    executiveSummary: text(raw.executive_summary) || undefined,
     positioning: text(raw.positioning) || undefined,
     metricCards: list(raw.metric_cards).map(mapMetric).filter(isPresent),
     targetCustomers: profile.targetCustomers,
