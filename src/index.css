@@ -142,6 +142,23 @@
   animation: fade-up 0.3s ease-out forwards;
 }
 
+@keyframes warning-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+}
+
+.animate-warning-shake {
+  animation: warning-shake 300ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-warning-shake {
+    animation: none;
+  }
+}
+
 /* Stagger delays for bars */
 .bar-delay-0 { animation-delay: 0ms; }
 .bar-delay-1 { animation-delay: 50ms; }

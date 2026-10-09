@@ -1,8 +1,5 @@
-import type { ActionId, ContextualAction } from '../actions';
-import { ACTION_REGISTRY, isActionId } from '../actions';
 import { getActiveBaseUrl } from '../components/EndpointSettings';
 import { getLocalSample, loadSample } from '../data/github-loader';
-import { resolveSavedAction } from './saved-actions';
 import type { SampleId } from '../data';
 import type {
   ActionPlanItem,
@@ -21,30 +18,18 @@ import type {
   AnalysisMetric,
 } from '../types';
 
-export interface ActionResult {
-  response: OrchestratorResponse;
-}
-
 export interface BootstrapResult {
   data: AnalysisData;
   missingData: NonNullable<OrchestratorResponse['missing_data']>;
-}
-
-export interface ActionExecutionOptions {
-  isSavedAnalysis?: boolean;
-  signal?: AbortSignal;
 }
 
 export interface ApiClient {
   getLocalSample(sampleId: SampleId): AnalysisData | null;
   loadSample(sampleId: SampleId): Promise<AnalysisData>;
   bootstrap(profile: BusinessProfile): Promise<BootstrapResult>;
-  executeAction(action: ContextualAction, data: AnalysisData, options?: ActionExecutionOptions): Promise<ActionResult>;
 }
 
 class OrchestratorApi implements ApiClient {
-  private readonly sessionId = `ui-${crypto.randomUUID()}`;
-
   getLocalSample(sampleId: SampleId): AnalysisData | null {
     return getLocalSample(sampleId);
   }
@@ -89,148 +74,9 @@ class OrchestratorApi implements ApiClient {
     };
   }
 
-  async executeAction(
-    action: ContextualAction,
-    data: AnalysisData,
-    options: ActionExecutionOptions = {},
-  ): Promise<ActionResult> {
-    if (!isActionId(action.action)) {
-      throw new Error('Unsupported action.');
-    }
-    if (!action.entity.trim()) {
-      throw new Error('An action requires a selected entity.');
-    }
-    if (action.action === 'compare_competitors' && !action.target?.trim()) {
-      throw new Error('Choose a competitor to compare.');
-    }
-
-    const savedResponse = resolveSavedAction(action, data);
-    if (savedResponse) return { response: savedResponse };
-
-    const structuredAction: { action: ActionId; entity: string; section: ContextualAction['section']; target?: string } = {
-      action: action.action,
-      entity: action.entity,
-      section: action.section,
-      ...(action.target ? { target: action.target } : {}),
-    };
-    const intent = action.action === 'compare_competitors'
-      ? 'compare'
-      : action.action.startsWith('explain_')
-        ? 'explain'
-        : 'question';
-
-    const payload = await requestActionResponse(`${getActiveBaseUrl()}/api/v1/parser/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        parser_input: {
-          intent,
-          message: actionMessage(action, data),
-          action: structuredAction,
-          session_id: this.sessionId,
-          context_update: {
-            version: 1,
-            business: {
-              name: data.profile.businessName,
-              industry: data.profile.industry,
-              pricing: data.profile.pricing,
-              model: data.profile.businessModel,
-              idea: data.profile.idea,
-            },
-            entities: {
-              competitors: data.competitors.map((competitor) => slug(competitor.name)),
-              focus: slug(action.entity),
-            },
-            result_meta: {
-              requested_count: data.competitors.length,
-              retrieved_count: data.competitors.length,
-              filters: [],
-            },
-            constraints: { included: [], excluded: [] },
-            keywords: [data.profile.industry],
-          },
-          current_analysis: {
-            business: {
-              name: data.profile.businessName,
-              industry: data.profile.industry,
-              pricing: data.profile.pricing,
-              model: data.profile.businessModel,
-              idea: data.profile.idea,
-            },
-            ...data,
-          },
-          form_input: toFormInput(data.profile),
-        },
-      }),
-    }, options.signal);
-    if (!isOrchestratorResponse(payload)) {
-      throw new Error('The orchestrator returned an invalid action response.');
-    }
-    if (payload.status === 'error') {
-      throw new Error(payload.error ?? 'The orchestrator could not complete this action.');
-    }
-    return { response: payload };
-  }
-}
-
-async function requestActionResponse(
-  request: RequestInfo | URL,
-  init: RequestInit,
-  externalSignal?: AbortSignal,
-): Promise<unknown> {
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, 90_000);
-  const forwardAbort = () => controller.abort(externalSignal?.reason);
-  if (externalSignal?.aborted) forwardAbort();
-  else externalSignal?.addEventListener('abort', forwardAbort, { once: true });
-
-  try {
-    const response = await fetch(request, { ...init, signal: controller.signal });
-    if (!response.ok) {
-      const details = await response.text();
-      throw new Error(`Orchestrator returned ${response.status}${details ? `: ${details.slice(0, 200)}` : ''}`);
-    }
-    return await response.json() as unknown;
-  } catch (error) {
-    if (timedOut) throw new Error('The action request timed out. Please retry.');
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-    externalSignal?.removeEventListener('abort', forwardAbort);
-  }
 }
 
 export const api: ApiClient = new OrchestratorApi();
-
-function actionMessage(action: ContextualAction, data: AnalysisData): string {
-  const selectedCompetitor = data.competitors.find((competitor) =>
-    competitor.name.trim().toLowerCase() === action.entity.trim().toLowerCase());
-  const targetName = action.target?.trim().toLowerCase();
-  const targetCompetitor = targetName
-    ? data.competitors.find((competitor) =>
-      competitor.name.trim().toLowerCase() === targetName)
-    : undefined;
-  if (action.action === 'compare_competitors' && selectedCompetitor && targetCompetitor) {
-    return `Compare ${selectedCompetitor.name} with ${targetCompetitor.name} using the current analysis.`;
-  }
-  if (action.action === 'compare_competitors' && targetCompetitor) {
-    const peer = data.competitors
-      .filter((competitor) => competitor.id !== targetCompetitor.id)
-      .sort((left, right) => (right.marketShare ?? 0) - (left.marketShare ?? 0))[0];
-    if (peer) return `Compare ${peer.name} with ${targetCompetitor.name} using the current analysis.`;
-  }
-  if (action.action === 'compare_competitors') {
-    return 'Compare the selected competitors in the current analysis.';
-  }
-  const label = ACTION_REGISTRY[action.action].label;
-  const isPrimaryBusiness = action.entity.trim().toLowerCase() === data.profile.businessName.trim().toLowerCase();
-  const subject = selectedCompetitor?.name ?? (isPrimaryBusiness ? 'the selected business' : 'the selected context');
-  return `${label} for ${subject} using the current analysis.`;
-}
 
 function toFormInput(profile: BusinessProfile) {
   return {
@@ -525,47 +371,9 @@ function isOrchestratorResponse(value: unknown): value is OrchestratorResponse {
   if (value.data !== undefined && value.data !== null && !isRecord(value.data)) return false;
   if (value.explanation !== undefined && value.explanation !== null && typeof value.explanation !== 'string') return false;
   if (value.error !== undefined && value.error !== null && typeof value.error !== 'string') return false;
-  if (value.answer !== undefined && value.answer !== null && !isAnswerBlock(value.answer)) return false;
   if (value.missing_data !== undefined
     && (!Array.isArray(value.missing_data) || !value.missing_data.every(isMissingDataItem))) return false;
   return true;
-}
-
-function isAnswerBlock(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  if (value.summary !== undefined && typeof value.summary !== 'string') return false;
-  for (const key of ['question', 'explanation']) {
-    if (value[key] !== undefined && value[key] !== null && typeof value[key] !== 'string') return false;
-  }
-  if (value.evidence !== undefined
-    && (!Array.isArray(value.evidence) || !value.evidence.every((item) =>
-      isRecord(item) && typeof item.label === 'string' && typeof item.detail === 'string'))) return false;
-  if (value.sources !== undefined && !isSourceList(value.sources)) return false;
-  return ['competitors', 'comparedTo'].every((key) =>
-    value[key] === undefined || Array.isArray(value[key]) && value[key].every(isLookupCompetitor));
-}
-
-function isSourceList(value: unknown): boolean {
-  return Array.isArray(value) && value.every((source) =>
-    isRecord(source)
-    && typeof source.id === 'string'
-    && typeof source.title === 'string'
-    && (source.url === undefined || typeof source.url === 'string')
-    && (source.snippet === undefined || typeof source.snippet === 'string'));
-}
-
-function isLookupCompetitor(value: unknown): boolean {
-  return isRecord(value)
-    && typeof value.id === 'string'
-    && typeof value.name === 'string'
-    && (value.source === 'web' || value.source === 'context' || value.source === '')
-    && isRecord(value.profile)
-    && typeof value.profile.description === 'string'
-    && Array.isArray(value.profile.strengths)
-    && value.profile.strengths.every((item) => typeof item === 'string')
-    && Array.isArray(value.profile.weaknesses)
-    && value.profile.weaknesses.every((item) => typeof item === 'string')
-    && isSourceList(value.sources);
 }
 
 function isMissingDataItem(value: unknown): boolean {

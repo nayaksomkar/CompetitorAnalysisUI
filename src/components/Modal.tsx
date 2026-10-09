@@ -8,6 +8,7 @@ export function Modal({
   subtitle,
   children,
   size = 'lg',
+  dialogClassName = '',
 }: {
   open: boolean;
   onClose: () => void;
@@ -15,6 +16,7 @@ export function Modal({
   subtitle?: string;
   children: ReactNode;
   size?: 'md' | 'lg' | 'xl';
+  dialogClassName?: string;
 }) {
   useEffect(() => {
   const onKey = (e: KeyboardEvent) => {
@@ -38,7 +40,7 @@ export function Modal({
   <div
   role="dialog"
   aria-modal="true"
-  className={`relative w-full ${sizes[size]} bg-white  rounded-2xl shadow-2xl border border-ink-100  overflow-hidden`}
+  className={`relative w-full ${sizes[size]} bg-white  rounded-2xl shadow-2xl border border-ink-100  overflow-hidden ${dialogClassName}`}
   >
   <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-ink-100 ">
   <div>

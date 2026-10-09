@@ -1,123 +1,69 @@
-# Competitive Insights — AI Competitive Analysis UI
+# Competitive Insights
 
-A React + TypeScript dashboard for competitor research. Submit a business profile to explore interactive charts, competitor profiles, SWOT analyses, and action plans, with contextual explanations and predefined actions.
+Competitive Insights is a React and TypeScript dashboard for exploring a business's competitive landscape. It turns a business profile or a saved example into a navigable analysis with competitor comparisons, pricing, market gaps, insights, reports, and source links.
 
-## What It Does
+## Product overview
 
-- **Ask about your business** — Fill out a short form (or pick a sample)
-- **Get a full analysis** — Competitors, market gaps, pricing comparisons, insights
-- **8 tabs to explore** — Overview, Competitors, Products, Pricing, Market Gaps, Insights, Reports, Sources
-- **Contextual AI controls** — Explain a selected section and explore it using predefined actions
+Start with a guided business profile or open one of the bundled examples. Saved examples render immediately from local data and can refresh from GitHub. For a live analysis, the UI sends structured requests to the CompetitorEngine parser endpoint. The dashboard then presents the returned data across eight tabs, with contextual explanations and predefined actions tied to the selected entity and current analysis.
 
-## Quick Start
+### Highlights
+
+- Responsive business questionnaire with competitor and research-goal inputs
+- Eight analysis views: Overview, Competitors, Products, Pricing, Market Gaps, Insights, Reports, and Sources
+- Custom SVG visualizations and comparison tables without a charting dependency
+- Contextual explain, compare, and question actions that preserve analysis context
+- Local-first sample loading with GitHub refresh and in-memory caching
+- Configurable backend endpoint, health status, loading and error states, and graceful handling of incomplete analysis data
+- Typed API mapping from orchestrator responses into UI data models
+
+## Tech stack
+
+React 18 · TypeScript · Vite · Tailwind CSS · Vitest · Testing Library
+
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open <http://localhost:5173>.
+Open <http://localhost:5173>. The bundled perfume and protein examples are available without a running backend. To generate a new analysis or run backend-backed contextual actions, start the CompetitorEngine service and set its URL in the app's endpoint settings. The expected parser route is `POST /api/v1/parser/execute`; the health indicator uses `GET /health`.
 
-Other commands:
-- `npm run build` — Build for production
-- `npm run preview` — Preview the production build
-- `npm run typecheck` — Check for TypeScript errors
+Optional sample-data settings are documented in [.env.example](.env.example):
 
-## Connecting to Your Backend
+- `VITE_DATA_REPO` and `VITE_DATA_BRANCH` select the GitHub repository and branch used to refresh bundled sample data.
 
-This app works out of the box with mock data. To connect it to a real backend:
+Set backend URLs in the app's endpoint settings; endpoint selections are saved in browser storage.
 
-### 1. Your API needs two endpoints:
+## Backend contract
 
-| Method | Path | What it does |
-|--------|------|--------------|
-| `GET` | `/health` | Health check → `{ status: "ok" }` |
-| `POST` | `/api/v1/analyze` | Main analysis endpoint |
+The UI posts a `parser_input` object with an intent (`bootstrap`, `compare`, `explain`, or `question`) to `/api/v1/parser/execute`. A bootstrap request includes the business profile as `form_input`. The response should include a `data` object containing the analysis fields supported by the UI. Contextual action responses may also include a status, error, and `missing_data` list. The response mapping and validation live in [src/api/client.ts](src/api/client.ts).
 
-### 2. Send this to `/api/v1/analyze`:
+## Project structure
 
-```json
-{
-  "business_name": "Your Company",
-  "idea": "What your business does",
-  "industry": "Your industry",
-  "competitors": ["Competitor 1", "Competitor 2"],
-  "research_goals": ["competitor_pricing", "market_gaps"]
-}
-```
-
-Only `business_name`, `idea`, and `industry` are required. The rest is optional.
-
-### 3. You'll get back:
-
-```json
-{
-  "competitors": [...],
-  "swot": { "strengths": [...], "weaknesses": [...], "opportunities": [...], "threats": [...] },
-  "charts": [...],
-  "insights": [...],
-  "recommendations": [...],
-  "action_plan": [...],
-  "report": { ... },
-  "sources": [...]
-}
-```
-
-Every item includes an `explanation` field — use it for "Explain This" tooltips.
-
-### 4. Chart data looks like:
-
-```json
-{
-  "chart_type": "bar",
-  "labels": ["Le Labo", "Byredo", "Replica"],
-  "datasets": [
-    { "name": "Market Share", "color": "#10a37f", "values": [8, 6, 11] }
-  ]
-}
-```
-
-Chart types: `bar`, `line`, `area`, `radar`, `pie`
-
-### 5. Wire it up:
-
-In `src/api/client.ts`, swap one line:
-
-```ts
-import { HttpApi } from './http';
-
-export const api: ApiClient = new HttpApi({
-  baseUrl: import.meta.env.VITE_API_URL,
-});
-```
-
-Add to your `.env`:
-```
-VITE_API_URL=https://your-api.com
-```
-
-The `HttpApi` class handles all the translation — your backend sends snake_case, the UI uses camelCase automatically.
-
-## Project Structure
-
-```
+```text
 src/
-├── App.tsx              # Main app shell + sidebar
-├── types.ts             # All TypeScript types
-├── api/
-│   ├── client.ts        # API client (swap mock ↔ real here)
-│   └── http.ts          # Real backend client
-├── data/                # Mock data samples
-├── components/          # UI pieces (charts, cards, tables)
-└── views/              # Tab content
+├── App.tsx                 # App state, navigation, and analysis flow
+├── actions.ts              # Contextual action registry
+├── api/                    # Orchestrator client and saved action handling
+├── components/             # Dashboard, questionnaire, tables, charts, and UI primitives
+├── data/                   # Local examples and GitHub sample loader
+├── types.ts                # Shared domain and API types
+└── views/                  # Analysis tab content
 ```
 
-## Design Notes
+## Useful commands
 
-- No external UI library — custom components with Tailwind CSS
-- No charting library — custom SVG charts (bar, line, area, radar, pie)
-- Analysis-first, with contextual actions instead of free-form chat
-- Sources are always visible — trust over polish
+```bash
+npm run dev        # Start the Vite development server
+npm run build      # Type check and create the production build
+npm run typecheck  # Run the TypeScript project checks
+npm run lint       # Run ESLint
+```
+
+## Resume-ready project summary
+
+**Competitive Insights Dashboard** — Built a responsive React and TypeScript application that transforms business profiles and orchestrator responses into an eight-section competitive analysis dashboard. Implemented typed API integration, context-aware explain and compare actions, custom SVG charts, and local-first sample loading with GitHub refresh and caching.
 
 ## License
 

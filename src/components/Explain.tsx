@@ -1,13 +1,15 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Icon } from './icons';
-import type { AnalysisData, OrchestratorResponse } from '../types';
-import {
-  getContextualActions,
-  isActionId,
-  type ContextualAction,
-  type ExplainContext,
-} from '../actions';
-import type { ActionResult } from '../api/client';
+import type { Explanation } from '../types';
+
+type ExplainSection = 'competitor' | 'pricing' | 'market-gap' | 'insight' | 'chart' | 'product' | 'report' | 'sources';
+
+interface ExplainContext {
+  section: ExplainSection;
+  title: string;
+  entity: string;
+  explanation?: Explanation;
+}
 
 interface ExplainPanelApi {
   openExplain: (context: ExplainContext) => void;
@@ -16,79 +18,17 @@ interface ExplainPanelApi {
 const ExplainPanelContext = createContext<ExplainPanelApi | null>(null);
 
 export function ExplainPanelProvider({
-  data,
-  isSavedAnalysis,
-  onAction,
-  onActionResult,
   children,
 }: {
-  data: AnalysisData;
-  isSavedAnalysis: boolean;
-  onAction: (action: ContextualAction, data: AnalysisData, options: { isSavedAnalysis: boolean; signal: AbortSignal }) => Promise<ActionResult>;
-  onActionResult: (response: OrchestratorResponse, action: ContextualAction) => void;
   children: ReactNode;
 }) {
   const [context, setContext] = useState<ExplainContext | null>(null);
-  const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [retryAction, setRetryAction] = useState<ContextualAction | null>(null);
-  const requestId = useRef(0);
-  const activeController = useRef<AbortController | null>(null);
-
-  const cancelPendingAction = () => {
-    requestId.current += 1;
-    activeController.current?.abort();
-    activeController.current = null;
-    setPendingAction(null);
-  };
-
-  useEffect(() => () => {
-    requestId.current += 1;
-    activeController.current?.abort();
-    activeController.current = null;
-  }, []);
-
-  const runAction = async (action: ContextualAction) => {
-    if (!isActionId(action.action) || activeController.current) return;
-    const currentRequestId = ++requestId.current;
-    const controller = new AbortController();
-    activeController.current = controller;
-    const actionKey = `${action.action}:${action.target ?? ''}`;
-    setPendingAction(actionKey);
-    setError(null);
-    setRetryAction(null);
-    try {
-      const result = await onAction(action, data, { isSavedAnalysis, signal: controller.signal });
-      if (currentRequestId !== requestId.current) return;
-      if (result.response.status === 'error') throw new Error(result.response.error ?? 'The action could not be completed.');
-      onActionResult(result.response, action);
-    } catch (actionError) {
-      if (currentRequestId === requestId.current) {
-        setError(actionError instanceof Error ? actionError.message : 'The action could not be completed.');
-        setRetryAction(action);
-      }
-    } finally {
-      if (currentRequestId === requestId.current) {
-        activeController.current = null;
-        setPendingAction(null);
-      }
-    }
-  };
-
   const openContext = (value: ExplainContext) => {
-    cancelPendingAction();
     setContext(value);
-    setError(null);
-    setRetryAction(null);
   };
   const closePanel = () => {
-    cancelPendingAction();
     setContext(null);
-    setError(null);
-    setRetryAction(null);
   };
-
-  const actions = context ? getContextualActions(context, data) : [];
 
   return (
     <ExplainPanelContext.Provider value={{ openExplain: openContext }}>
@@ -152,44 +92,6 @@ export function ExplainPanelProvider({
                 </section>
               ) : null}
 
-              <section className="border-t border-ink-100 pt-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Explore further</h3>
-                <div className="mt-3 flex flex-col gap-2">
-                  {actions.map((action, index) => {
-                    const key = `${action.id}-${action.target ?? index}`;
-                    const busy = pendingAction === `${action.id}:${action.target ?? ''}`;
-                    return (
-                      <button
-                        key={key}
-                        disabled={pendingAction !== null}
-                        onClick={() => void runAction({
-                          action: action.id,
-                          entity: context.entity,
-                          section: context.section,
-                          ...(action.target ? { target: action.target } : {}),
-                        })}
-                        className="flex items-center justify-between rounded-lg border border-ink-200 px-3 py-2 text-left text-sm text-ink-700 transition hover:border-ink-300 hover:bg-ink-50 disabled:cursor-wait disabled:opacity-60"
-                      >
-                        <span>{action.label}</span>
-                        {busy ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-300 border-t-emerald-600" /> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-                {error && (
-                  <div role="alert" className="mt-3 flex items-center justify-between gap-3 text-sm text-rose-700">
-                    <p>{error}</p>
-                    {retryAction && (
-                      <button
-                        className="shrink-0 font-medium underline"
-                        onClick={() => void runAction(retryAction)}
-                      >
-                        Retry
-                      </button>
-                    )}
-                  </div>
-                )}
-              </section>
             </div>
           </aside>
         </>

@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import { sampleList } from '../data';
 import type { BusinessProfile, SampleId } from '../types';
+import { Modal } from './Modal';
+import { Footer } from './Footer';
+
+const unavailableMessage = 'Creating a custom business analysis is temporarily unavailable because the backend service is not running. Please select one of the predefined sample analyses to explore the dashboard.';
 
 interface QuestionnaireProps {
   onSubmit: (profile: BusinessProfile, sampleId: SampleId | null) => void | Promise<void>;
@@ -12,20 +16,17 @@ interface QuestionnaireProps {
 export function Questionnaire({ onSubmit, loading = false, error }: QuestionnaireProps) {
   const [sampleId, setSampleId] = useState<SampleId | null>('perfume');
   const [form, setForm] = useState<BusinessProfile>(sampleList.find((s) => s.id === 'perfume')!.profile);
+  const [warningOpen, setWarningOpen] = useState(false);
+  const sampleOptionsRef = useRef<HTMLDivElement>(null);
 
-  const emptyForm: BusinessProfile = {
-  businessName: '',
-  idea: '',
-  industry: '',
-  productsServices: [],
-  targetCustomers: '',
-  geography: '',
-  pricing: '',
-  businessModel: '',
-  competitors: [],
-  differentiators: '',
-  researchGoals: [],
-  };
+  useEffect(() => {
+  if (!warningOpen || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    navigator.vibrate(100);
+  } catch {
+    // Vibration is optional and may be blocked by the browser or device.
+  }
+  }, [warningOpen]);
 
   const update = <K extends keyof BusinessProfile>(k: K, v: BusinessProfile[K]) => {
   setSampleId(null);
@@ -37,9 +38,14 @@ export function Questionnaire({ onSubmit, loading = false, error }: Questionnair
   setForm(sampleList.find((s) => s.id === id)!.profile);
   };
 
-  const clearForm = () => {
-  setSampleId(null);
-  setForm(emptyForm);
+  const blockDynamicAnalysis = () => setWarningOpen(true);
+
+  const chooseSample = () => {
+  setWarningOpen(false);
+  requestAnimationFrame(() => {
+    sampleOptionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    sampleOptionsRef.current?.focus({ preventScroll: true });
+  });
   };
 
   const [competitorInput, setCompetitorInput] = useState('');
@@ -64,7 +70,9 @@ export function Questionnaire({ onSubmit, loading = false, error }: Questionnair
   update('researchGoals', (form.researchGoals ?? []).filter((_g: string, idx: number) => idx !== i));
 
   return (
-  <div className="min-h-full flex flex-col items-center px-4 py-10 bg-gradient-to-b from-white to-ink-50/40  ">
+  <>
+  <div className="h-full min-h-0 flex flex-col overflow-y-auto bg-gradient-to-b from-white to-ink-50/40">
+  <div className="flex-1 flex flex-col items-center px-4 py-6 sm:py-10">
   <div className="max-w-3xl w-full">
   <div className="text-center mb-8">
   <div className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-emerald-500 text-white mb-3">
@@ -78,16 +86,17 @@ export function Questionnaire({ onSubmit, loading = false, error }: Questionnair
 
   <div className="card bg-white  border border-ink-100  p-6 mb-4">
   <p className="text-xs font-semibold uppercase tracking-wide text-ink-500  mb-3">Choose how to start</p>
-  <div className="grid sm:grid-cols-3 gap-2">
+  <div ref={sampleOptionsRef} tabIndex={-1} className="grid sm:grid-cols-3 gap-2 outline-none">
   <button
-  onClick={clearForm}
-  className={`text-left rounded-xl border p-3 transition ${sampleId === null ? 'border-emerald-500  ring-1 ring-emerald-500  bg-emerald-50/50 ' : 'border-ink-200  hover:border-ink-300 bg-white '}`}
+  onClick={blockDynamicAnalysis}
+  aria-label="Create your own (unavailable)"
+  className={`text-left rounded-xl border p-3 transition ${sampleId === null ? 'border-emerald-500  ring-1 ring-emerald-500  bg-emerald-50/50 ' : 'border-ink-200  hover:border-ink-300 bg-white '} opacity-80`}
   >
   <div className="flex items-center gap-2">
   <Icon.Plus className={`w-4 h-4 ${sampleId === null ? 'text-emerald-600 ' : 'text-ink-400 '}`} />
   <p className="text-sm font-medium text-ink-900 ">Create your own</p>
   </div>
-  <p className="text-xs text-ink-500  mt-1">Start with a blank form</p>
+  <p className="text-xs text-ink-500  mt-1">Temporarily unavailable</p>
   </button>
   {sampleList.map((s) => (
   <button
@@ -117,7 +126,8 @@ export function Questionnaire({ onSubmit, loading = false, error }: Questionnair
 
   <form
   className="card bg-white  border border-ink-100  p-6 space-y-5"
-  onSubmit={(e) => { e.preventDefault(); void onSubmit(form, sampleId); }}
+  noValidate
+  onSubmit={(e) => { e.preventDefault(); if (!sampleId) { blockDynamicAnalysis(); return; } void onSubmit(form, sampleId); }}
   >
   <div className="grid sm:grid-cols-2 gap-4">
   <Field label="Business name">
@@ -219,6 +229,18 @@ export function Questionnaire({ onSubmit, loading = false, error }: Questionnair
   </form>
   </div>
   </div>
+  <Footer />
+  </div>
+  <Modal open={warningOpen} onClose={() => setWarningOpen(false)} title="Dynamic analysis unavailable" size="md" dialogClassName="animate-warning-shake">
+  <div className="p-6">
+  <p className="text-sm text-ink-600">{unavailableMessage}</p>
+  <div className="flex justify-end gap-2 mt-6">
+  <button type="button" onClick={() => setWarningOpen(false)} className="px-4 py-2 rounded-lg text-sm text-ink-600 hover:bg-ink-100">Cancel</button>
+  <button type="button" onClick={chooseSample} className="btn-primary">Choose a sample</button>
+  </div>
+  </div>
+  </Modal>
+  </>
   );
 }
 

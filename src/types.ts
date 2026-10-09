@@ -170,28 +170,6 @@ export interface AnalysisMetric {
   change?: string;
 }
 
-// ---------- Lookup (web-searched competitor) ----------
-
-export interface LookupCompetitor {
-  id: ID;
-  name: string;
-  source: 'web' | 'context' | '';
-  lookupConfidence?: number;
-  profile: {
-    description: string;
-    pricingTier?: string;
-    marketPosition?: 'Leader' | 'Challenger' | 'Niche' | 'Emerging' | 'unknown';
-    marketShare?: number | null;
-    growthRate?: number | null;
-    funding?: string | null;
-    founded?: string | null;
-    hq?: string | null;
-    strengths: string[];
-    weaknesses: string[];
-  };
-  sources: Source[];
-}
-
 // ---------- Orchestrator response (parser/execute) ----------
 
 export interface ContextUpdate {
@@ -219,16 +197,6 @@ export interface ContextUpdate {
   keywords: string[];
 }
 
-export interface AnswerBlock {
-  summary?: string;
-  competitors?: LookupCompetitor[];
-  comparedTo?: LookupCompetitor[];
-  question?: string | null;
-  explanation?: string | null;
-  evidence?: { label: string; detail: string }[];
-  sources?: Source[];
-}
-
 export interface OrchestratorData {
   business_summary?: string;
   executive_summary?: string;
@@ -249,7 +217,6 @@ export interface OrchestratorResponse {
   status: 'success' | 'partial' | 'error';
   intent?: string;
   data?: OrchestratorData | null;
-  answer?: AnswerBlock | null;
   explanation?: string | null;
   missing_data?: { field: string; reason: string; severity?: string }[];
   context_update?: ContextUpdate | null;

@@ -11,15 +11,12 @@ import { api } from './api/client';
 import type { SampleId } from './data';
 import { sampleList as staticSampleList, isGitHubConfigured } from './data';
 import { ExplainPanelProvider } from './components/Explain';
-import { ActionResultView } from './components/ActionResult';
-import type { ContextualAction } from './actions';
 
 export default function App() {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [sampleId, setSampleId] = useState<SampleId | null>(null);
   const [data, setData] = useState<AnalysisData | null>(null);
   const [tab, setTab] = useState<TabKey>('overview');
-  const [actionResult, setActionResult] = useState<{ response: OrchestratorResponse; action: ContextualAction } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,7 +24,9 @@ export default function App() {
   const [missingData, setMissingData] = useState<NonNullable<OrchestratorResponse['missing_data']>>([]);
   const sampleLoadId = useRef(0);
 
-  const handleSubmit = async (p: BusinessProfile, s: SampleId | null) => {
+  const handleSubmit = async (_p: BusinessProfile, s: SampleId | null) => {
+  // Keep dynamic submissions inert even if this handler is called outside the questionnaire UI.
+  if (!s) return;
   if (loading) return;
   setSubmitError(null);
   setMissingData([]);
@@ -39,7 +38,6 @@ export default function App() {
       setData(local);
       setProfile(local.profile);
       setSampleId(s);
-      setActionResult(null);
       setTab('overview');
       setLoading(false);
 
@@ -64,15 +62,7 @@ export default function App() {
       setData(full);
       setProfile(full.profile);
       setSampleId(s);
-    } else {
-      const result = await api.bootstrap(p);
-      if (sampleLoadId.current !== loadId) return;
-      setData(result.data);
-      setProfile(p);
-      setSampleId(null);
-      setMissingData(result.missingData);
     }
-    setActionResult(null);
     setTab('overview');
   } catch (error) {
     setSubmitError(error instanceof Error ? error.message : 'Unable to load the analysis.');
@@ -83,7 +73,7 @@ export default function App() {
 
   const reset = () => {
   sampleLoadId.current += 1;
-  setProfile(null); setSampleId(null); setData(null); setActionResult(null); setMissingData([]); setSubmitError(null); setTab('overview');
+  setProfile(null); setSampleId(null); setData(null); setMissingData([]); setSubmitError(null); setTab('overview');
   };
 
   const hardReset = () => {
@@ -102,15 +92,7 @@ export default function App() {
   }
 
   return (
-  <ExplainPanelProvider
-  data={data}
-  isSavedAnalysis={sampleId !== null}
-  onAction={(action, currentData, options) => api.executeAction(action, currentData, options)}
-  onActionResult={(response, action) => {
-  setActionResult({ response, action });
-  setTab(getActionTab(action.action));
-  }}
-  >
+  <ExplainPanelProvider>
   <div className="h-full flex bg-ink-50/30 ">
   {/* Mobile overlay */}
   {sidebarOpen && (
@@ -173,13 +155,6 @@ export default function App() {
   This analysis has no supporting sources. Treat narrative claims and metrics as unverified.
   </div>
   )}
-  {actionResult && (
-  <ActionResultView
-  result={actionResult.response}
-  action={actionResult.action}
-  onDismiss={() => setActionResult(null)}
-  />
-  )}
   <div className="flex-1 min-h-0 overflow-hidden">
   <ErrorBoundary>
   <TabContent tab={tab} data={data} />
@@ -187,13 +162,6 @@ export default function App() {
   </div>
   </div>
 
-  {/* Footer warning */}
-  <div className="shrink-0 px-4 py-2 border-t border-rose-200/60  bg-rose-50/80 ">
-  <p className="text-xs text-rose-600  text-center flex items-center justify-center gap-1.5">
-  <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-400  animate-pulse" />
-  Runs on free Render hosting and a free AI API, so responses may take a little longer.
-  </p>
-  </div>
   </main>
 
   {/* Endpoint Settings Modal */}
@@ -264,7 +232,7 @@ function Sidebar({
   </nav>
 
   <div className="p-3 border-t border-ink-100 space-y-2">
-  <ServerStatus enabled={!sampleId} />
+  <ServerStatus />
   <EndpointBadge onOpenSettings={onOpenSettings} />
   {isGitHubConfigured() && (
   <a
@@ -297,15 +265,4 @@ function Sidebar({
   </div>
   </aside>
   );
-}
-
-function getActionTab(action: ContextualAction['action']): TabKey {
-  if (action === 'show_pricing' || action === 'show_price_gaps' || action === 'explain_premium_positioning') return 'pricing';
-  if (action === 'show_sources' || action === 'show_supporting_evidence') return 'sources';
-  if (action === 'show_market_gap' || action === 'explain_opportunity') return 'market-gaps';
-  if (action === 'explore_related_products') return 'products';
-  if (action === 'show_affected_competitors' || action === 'compare_competitors' || action === 'show_market_position' || action === 'show_weaknesses' || action === 'show_strengths') return 'competitors';
-  if (action === 'show_supporting_data' || action === 'explore_implications') return 'insights';
-  if (action === 'show_market_share' || action === 'show_growth' || action === 'show_underlying_data' || action === 'explain_trend') return 'overview';
-  return 'overview';
 }

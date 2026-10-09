@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Icon } from './icons';
 import { Modal } from './Modal';
 
@@ -177,18 +177,7 @@ interface EndpointSettingsProps {
 
 export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsProps) {
   const [config, setConfig] = useState<EndpointConfig>(loadEndpointConfig);
-  const [status, setStatus] = useState<Record<string, 'idle' | 'checking' | 'online' | 'offline'>>({});
   const [editing, setEditing] = useState<{ serviceId: ServiceId; endpointId?: string } | null>(null);
-
-  // Auto-check all endpoints when the modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    const all = config.services.flatMap((svc) =>
-      svc.endpoints.map((ep) => ({ url: ep.url, key: `${svc.id}:${ep.id}` }))
-    );
-    all.forEach(({ url, key }) => checkHealth(url, key));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
 
   const updateService = (serviceId: ServiceId, updater: (svc: ServiceConfig) => ServiceConfig) => {
     setConfig((prev) => ({
@@ -225,19 +214,6 @@ export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsPr
     setEditing({ serviceId, endpointId });
   };
 
-  const checkHealth = async (url: string, key: string) => {
-    setStatus((prev) => ({ ...prev, [key]: 'checking' }));
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${url.replace(/\/+$/, '')}/health`, { signal: controller.signal });
-      clearTimeout(timeout);
-      setStatus((prev) => ({ ...prev, [key]: res.ok ? 'online' : 'offline' }));
-    } catch {
-      setStatus((prev) => ({ ...prev, [key]: 'offline' }));
-    }
-  };
-
   const handleSave = () => {
     saveEndpointConfig(config);
     onSave(config);
@@ -245,7 +221,7 @@ export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsPr
   };
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="API Endpoints" subtitle="Configure backend URLs for testing">
+    <Modal open={isOpen} onClose={onClose} title="API Endpoints" subtitle="Saved locally. Dynamic analysis is unavailable.">
       <div className="space-y-4">
         {config.services.map((svc) => (
           <div key={svc.id} className="rounded-xl border border-ink-200 p-4">
@@ -267,8 +243,6 @@ export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsPr
                 <p className="text-xs text-ink-400 italic">No endpoints yet. Click "Add" to create one.</p>
               )}
               {svc.endpoints.map((ep) => {
-                const statusKey = `${svc.id}:${ep.id}`;
-                const st = status[statusKey] ?? 'idle';
                 return (
                   <div
                     key={ep.id}
@@ -288,31 +262,9 @@ export function EndpointSettings({ isOpen, onClose, onSave }: EndpointSettingsPr
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-medium text-ink-900 truncate">{ep.label}</p>
-                        {ep.active && st === 'online' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500 text-white font-semibold">
-                            ACTIVE
-                          </span>
-                        )}
                       </div>
                       <p className="text-[11px] text-ink-500 truncate font-mono">{ep.url}</p>
                     </div>
-                    <button
-                      onClick={() => checkHealth(ep.url, statusKey)}
-                      className="text-[11px] px-2 py-1 rounded bg-ink-100 text-ink-600 hover:bg-ink-200 shrink-0"
-                      title="Test /health endpoint"
-                    >
-                      {st === 'checking' ? '...' : 'Test'}
-                    </button>
-                    {st === 'online' && (
-                      <span className="flex items-center gap-1 text-[11px] text-emerald-600 shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> live
-                      </span>
-                    )}
-                    {st === 'offline' && (
-                      <span className="flex items-center gap-1 text-[11px] text-rose-600 shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> off
-                      </span>
-                    )}
                     <button
                       onClick={() => editEndpoint(svc.id, ep.id)}
                       className="p-1 rounded hover:bg-ink-100 text-ink-500 shrink-0"
