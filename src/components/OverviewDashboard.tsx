@@ -6,6 +6,7 @@ import { CompetitorCard } from './CompetitorCard';
 import { ComparisonTable } from './ComparisonTable';
 import { PricingTable } from './PricingTable';
 import { InsightCard, MarketGapCard, ActionPlanList, SourcesList } from './AssetCards';
+import { SafeText } from './SafeText';
 import type { AnalysisData, ChartData } from '../types';
 
 const PALETTE = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
@@ -77,26 +78,14 @@ export function OverviewDashboard({ data, focusText }: { data: AnalysisData; foc
 
   return (
   <div className="max-w-7xl w-full mx-auto space-y-4 py-4">
-  {/* Header */}
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-  <div className="min-w-0">
-  <h2 className="text-lg font-semibold text-ink-900 ">{profile.businessName} — Overview</h2>
-  <p className="text-sm text-ink-500  mt-0.5 line-clamp-2">{profile.idea}</p>
-  </div>
-  <div className="flex items-center gap-2 flex-wrap shrink-0">
-  {profile.industry && <Badge tone="green">{profile.industry}</Badge>}
-  {profile.geography && <Badge tone="gray">{profile.geography}</Badge>}
-  </div>
-  </div>
-
   {/* Executive Summary */}
   <div className={sectionClass}>
   <h3 className="text-sm font-semibold text-ink-700  uppercase tracking-wide">Executive Summary</h3>
   {(data.executiveSummary || data.businessSummary) && (
-  <p className="text-sm text-ink-700 leading-relaxed">{data.executiveSummary || data.businessSummary}</p>
+    <SafeText text={data.executiveSummary || data.businessSummary} className="text-sm text-ink-700 leading-relaxed" />
   )}
   {data.positioning && (
-  <p className="text-sm text-ink-600"><span className="font-medium text-ink-800">Positioning:</span> {data.positioning}</p>
+    <p className="text-sm text-ink-600"><span className="font-medium text-ink-800">Positioning:</span> {data.positioning}</p>
   )}
   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
   <Stat label="Competitors" value={competitors.length} />

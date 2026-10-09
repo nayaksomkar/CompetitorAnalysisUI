@@ -9,6 +9,15 @@ import { Chart } from '../components/Chart';
 import { InsightCard, MarketGapCard, ReportCard, ActionPlanList, SourcesList } from '../components/AssetCards';
 import { OverviewDashboard } from '../components/OverviewDashboard';
 import { ExplainButton } from '../components/Explain';
+import {
+  CompetitorsPlaceholder,
+  InsightsPlaceholder,
+  MarketGapsPlaceholder,
+  PricingPlaceholder,
+  ProductsPlaceholder,
+  ReportsPlaceholder,
+  SourcesPlaceholder,
+} from '../components/SectionPlaceholder';
 import type { AnalysisData, Competitor, TabKey } from '../types';
 
 export function TabContent({ tab, data }: { tab: TabKey; data: AnalysisData }) {
@@ -67,31 +76,37 @@ function CompetitorsView({ data }: { data: AnalysisData }) {
   action={
   <div className="inline-flex rounded-lg border border-ink-200  p-0.5 text-xs bg-white ">
   {(['All', 'Leader', 'Challenger', 'Niche', 'Emerging'] as const).map((f) => (
-  <button
-  key={f}
-  onClick={() => setFilter(f)}
-  className={`px-2.5 py-1 rounded-md ${filter === f ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
-  >
-  {f}
-  </button>
+    <button
+    key={f}
+    onClick={() => setFilter(f)}
+    className={`px-2.5 py-1 rounded-md ${filter === f ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
+    >
+    {f}
+    </button>
   ))}
   </div>
   }
   />
   <div className="p-4 sm:p-6 space-y-4">
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-  {filtered.map((c) => <CompetitorCard key={c.id} competitor={c} />)}
-  </div>
-  <ComparisonTable
-  data={{
-  title: 'All competitors — at-a-glance',
-  columns: ['Vendor', 'Share', 'Growth', 'Pricing tier', 'Position', 'HQ', 'Biggest weakness'],
-  rows: data.competitors.map((c) => ({
-  name: c.name,
-  cells: [percent(c.marketShare), percent(c.growthRate), c.pricingTier ?? '—', c.marketPosition ?? '—', c.hq ?? '—', c.weaknesses?.[0] ?? '—'],
-  })),
-  }}
-  />
+  {filtered.length > 0 ? (
+    <>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    {filtered.map((c) => <CompetitorCard key={c.id} competitor={c} />)}
+    </div>
+    <ComparisonTable
+    data={{
+    title: 'All competitors — at-a-glance',
+    columns: ['Vendor', 'Share', 'Growth', 'Pricing tier', 'Position', 'HQ', 'Biggest weakness'],
+    rows: data.competitors.map((c) => ({
+    name: c.name,
+    cells: [percent(c.marketShare), percent(c.growthRate), c.pricingTier ?? '—', c.marketPosition ?? '—', c.hq ?? '—', c.weaknesses?.[0] ?? '—'],
+    })),
+    }}
+    />
+    </>
+  ) : (
+    <CompetitorsPlaceholder />
+  )}
   </div>
   </div>
   );
@@ -108,18 +123,24 @@ function ProductsView({ data }: { data: AnalysisData }) {
   <div className="overflow-y-auto scrollbar-thin h-full min-h-0">
   <PageHeader title="Products" subtitle="Side-by-side product breakdowns." />
   <div className="p-4 sm:p-6 space-y-4">
-  <div className="flex flex-wrap gap-2">
-  {data.products.map((p) => (
-  <button
-  key={p.id}
-  onClick={() => setActive(p.id)}
-  className={`pill border ${active === p.id ? 'bg-ink-900 text-white border-ink-900' : 'bg-white text-ink-700 border-ink-200 hover:border-ink-300'}`}
-  >
-  {p.name}
-  </button>
-  ))}
-  </div>
-  {product && <ProductBreakdown product={product} />}
+  {data.products.length > 0 ? (
+    <>
+    <div className="flex flex-wrap gap-2">
+    {data.products.map((p) => (
+      <button
+      key={p.id}
+      onClick={() => setActive(p.id)}
+      className={`pill border ${active === p.id ? 'bg-ink-900 text-white border-ink-900' : 'bg-white text-ink-700 border-ink-200 hover:border-ink-300'}`}
+      >
+      {p.name}
+      </button>
+    ))}
+    </div>
+    {product && <ProductBreakdown product={product} />}
+    </>
+  ) : (
+    <ProductsPlaceholder />
+  )}
   </div>
   </div>
   );
@@ -128,6 +149,7 @@ function ProductsView({ data }: { data: AnalysisData }) {
 function PricingView({ data }: { data: AnalysisData }) {
   const [competitorId, setCompetitorId] = useState<string>('all');
   const filtered = competitorId === 'all' ? data.pricingTiers : data.pricingTiers.filter((t) => t.competitorId === competitorId);
+  const pricingChart = data.charts?.pricingPie;
   return (
   <div className="overflow-y-auto scrollbar-thin h-full min-h-0">
   <PageHeader
@@ -135,29 +157,37 @@ function PricingView({ data }: { data: AnalysisData }) {
   subtitle="Compare price ladders across competitors."
   action={
   <div className="flex items-center gap-2">
-  <ExplainButton
-    explanation={data.charts.pricingPie.explanation}
+  {pricingChart?.explanation && (
+    <ExplainButton
+    explanation={pricingChart.explanation}
     context={{ section: 'pricing', title: 'Pricing analysis', entity: data.profile.businessName }}
-  />
+    />
+  )}
   <div className="inline-flex flex-wrap rounded-lg border border-ink-200  p-0.5 text-xs bg-white ">
   <button
   onClick={() => setCompetitorId('all')}
   className={`px-2.5 py-1 rounded-md ${competitorId === 'all' ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
   >All</button>
   {data.competitors.map((c) => (
-  <button
-  key={c.id}
-  onClick={() => setCompetitorId(c.id)}
-  className={`px-2.5 py-1 rounded-md ${competitorId === c.id ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
-  >{c.name}</button>
+    <button
+    key={c.id}
+    onClick={() => setCompetitorId(c.id)}
+    className={`px-2.5 py-1 rounded-md ${competitorId === c.id ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
+    >{c.name}</button>
   ))}
   </div>
   </div>
   }
   />
   <div className="p-4 sm:p-6 space-y-4">
-  <PricingTable title={competitorId === 'all' ? 'All pricing tiers' : `${data.competitors.find((c) => c.id === competitorId)?.name} — pricing tiers`} tiers={filtered} />
-  <Chart data={data.charts.pricingPie} />
+  {data.pricingTiers.length > 0 ? (
+    <>
+    <PricingTable title={competitorId === 'all' ? 'All pricing tiers' : `${data.competitors.find((c) => c.id === competitorId)?.name} — pricing tiers`} tiers={filtered} />
+    {pricingChart && <Chart data={pricingChart} />}
+    </>
+  ) : (
+    <PricingPlaceholder />
+  )}
   </div>
   </div>
   );
@@ -168,7 +198,9 @@ function MarketGapsView({ data }: { data: AnalysisData }) {
   <div className="overflow-y-auto scrollbar-thin h-full min-h-0">
   <PageHeader title="Market Gaps" subtitle="Time-bounded openings with the highest opportunity." />
   <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-  {data.marketGaps.map((g) => <MarketGapCard key={g.id} gap={g} />)}
+  {data.marketGaps.length > 0
+    ? data.marketGaps.map((g) => <MarketGapCard key={g.id} gap={g} />)
+    : <MarketGapsPlaceholder />}
   </div>
   </div>
   );
@@ -185,19 +217,21 @@ function InsightsView({ data }: { data: AnalysisData }) {
   action={
   <div className="inline-flex flex-wrap rounded-lg border border-ink-200  p-0.5 text-xs bg-white ">
   {(['All', 'Opportunity', 'Risk', 'Trend', 'Recommendation'] as const).map((f) => (
-  <button
-  key={f}
-  onClick={() => setFilter(f)}
-  className={`px-2.5 py-1 rounded-md ${filter === f ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
-  >{f}</button>
+    <button
+    key={f}
+    onClick={() => setFilter(f)}
+    className={`px-2.5 py-1 rounded-md ${filter === f ? 'bg-ink-900  text-white ' : 'text-ink-700 '}`}
+    >{f}</button>
   ))}
   </div>
   }
   />
   <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-  {allItems.filter((i) => filter === 'All' || i.category === filter).map((i) => (
-  <InsightCard key={i.id} item={i} />
-  ))}
+  {allItems.filter((i) => filter === 'All' || i.category === filter).length > 0
+    ? allItems.filter((i) => filter === 'All' || i.category === filter).map((i) => (
+      <InsightCard key={i.id} item={i} />
+    ))
+    : <InsightsPlaceholder />}
   </div>
   </div>
   );
@@ -209,17 +243,21 @@ function ReportsView({ data }: { data: AnalysisData }) {
   <div className="overflow-y-auto scrollbar-thin h-full min-h-0">
   <PageHeader title="Reports" subtitle="Board-ready summaries and deep dives." />
   <div className="p-4 sm:p-6 space-y-4">
-  {data.reports.map((r) => <ReportCard key={r.id} report={r} />)}
-  <ActionPlanList
-  title={`${data.profile.businessName} — 90-day action plan`}
-  items={data.actionPlan}
-  explanation={{
-  summary: 'Three P0s in the next 60 days; P1s in the following quarter.',
-  whyItMatters: ['Sequencing compounds impact.'],
-  evidence: [{ label: 'Source', detail: 'Internal synthesis.' }],
-  sources: data.sources.slice(0, 4),
-  }}
-  />
+  {data.reports.length > 0
+    ? data.reports.map((r) => <ReportCard key={r.id} report={r} />)
+    : <ReportsPlaceholder />}
+  {data.actionPlan.length > 0 && (
+    <ActionPlanList
+    title={`${data.profile.businessName} — 90-day action plan`}
+    items={data.actionPlan}
+    explanation={{
+    summary: 'Prioritized actions derived from the analysis.',
+    whyItMatters: ['Sequencing compounds impact.'],
+    evidence: [{ label: 'Source', detail: 'Internal synthesis.' }],
+    sources: data.sources.slice(0, 4),
+    }}
+    />
+  )}
   </div>
   </div>
   );
@@ -233,7 +271,9 @@ function SourcesView({ data }: { data: AnalysisData }) {
     subtitle="Every claim links back to one of these."
     action={<ExplainButton context={{ section: 'sources', title: 'Source library', entity: data.profile.businessName }} />}
   />
-  <div className="p-4 sm:p-6"><SourcesList sources={data.sources} /></div>
+  <div className="p-4 sm:p-6">
+  {data.sources.length > 0 ? <SourcesList sources={data.sources} /> : <SourcesPlaceholder />}
+  </div>
   </div>
   );
 }

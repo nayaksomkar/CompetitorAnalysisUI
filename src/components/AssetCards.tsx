@@ -1,6 +1,7 @@
 import { Card, Badge } from './primitives';
 import { ExplainButton } from './Explain';
 import { Icon } from './icons';
+import { SafeText } from './SafeText';
 import type { InsightItem, MarketGap, Report, ActionPlanItem, Source } from '../types';
 
 export function InsightCard({ item, compact }: { item: InsightItem; compact?: boolean }) {
@@ -11,10 +12,10 @@ export function InsightCard({ item, compact }: { item: InsightItem; compact?: bo
   <Card className="p-3">
   <div className="flex items-center gap-2 mb-1">
   <Badge tone={catTone as 'green' | 'red' | 'blue' | 'violet'}>{item.category}</Badge>
-  <span className="text-xs text-ink-500 ">{item.confidence}%</span>
+  <span className="text-xs text-ink-500 ">{item.confidence === undefined ? '—' : `${item.confidence}%`}</span>
   </div>
   <h4 className="font-medium text-sm text-ink-900  leading-snug">{item.title}</h4>
-  <p className="text-xs text-ink-600  mt-1 line-clamp-2">{item.summary}</p>
+  <SafeText text={item.summary} className="text-xs text-ink-600  mt-1 line-clamp-2" />
   </Card>
   );
   }
@@ -23,14 +24,14 @@ export function InsightCard({ item, compact }: { item: InsightItem; compact?: bo
   <div className="flex items-start justify-between gap-3">
   <div className="flex items-center gap-2 flex-wrap">
   <Badge tone={catTone as 'green' | 'red' | 'blue' | 'violet'}>{item.category}</Badge>
-  <Badge tone={impactTone as 'red' | 'amber' | 'gray'}>Impact: {item.impact}</Badge>
-  <span className="text-xs text-ink-500  inline-flex items-center gap-1"><Icon.Target className="w-3.5 h-3.5" />{item.confidence}% confidence</span>
+  <Badge tone={impactTone as 'red' | 'amber' | 'gray'}>Impact: {item.impact ?? '—'}</Badge>
+  <span className="text-xs text-ink-500  inline-flex items-center gap-1"><Icon.Target className="w-3.5 h-3.5" />{item.confidence === undefined ? '—' : `${item.confidence}% confidence`}</span>
   </div>
   <ExplainButton explanation={item.explanation} context={{ section: 'insight', title: item.title, entity: item.title }} />
   </div>
   <h3 className="font-semibold text-ink-900  mt-3">{item.title}</h3>
-  <p className="text-sm text-ink-700  mt-1.5 leading-relaxed">{item.summary}</p>
-  <p className="text-sm text-ink-600  mt-2 leading-relaxed">{item.detail}</p>
+  <SafeText text={item.summary} className="text-sm text-ink-700  mt-1.5 leading-relaxed" />
+  {item.detail && <SafeText text={item.detail} className="text-sm text-ink-600  mt-2 leading-relaxed" />}
   </Card>
   );
 }
@@ -46,7 +47,7 @@ export function MarketGapCard({ gap }: { gap: MarketGap }) {
   <ExplainButton explanation={gap.explanation} context={{ section: 'market-gap', title: gap.title, entity: gap.title }} />
   </div>
   <h3 className="font-semibold text-ink-900  mt-3">{gap.title}</h3>
-  <p className="text-sm text-ink-700  mt-1.5 leading-relaxed">{gap.description}</p>
+  <SafeText text={gap.description} className="text-sm text-ink-700  mt-1.5 leading-relaxed" />
 
   <div className="mt-4 grid grid-cols-2 gap-3">
   <Score label="Opportunity" value={gap.opportunityScore} accent="green" />
@@ -82,20 +83,20 @@ export function ReportCard({ report }: { report: Report }) {
   <Card>
   <div className="flex items-start justify-between gap-3">
   <div className="flex items-center gap-2 flex-wrap">
-  <Badge tone="blue">{report.type}</Badge>
-  <Badge tone="gray">{report.pages} pages</Badge>
-  <span className="text-xs text-ink-500 ">{report.date}</span>
+  <Badge tone="blue">{report.type ?? 'Report'}</Badge>
+  {report.pages !== undefined && <Badge tone="gray">{report.pages} pages</Badge>}
+  <span className="text-xs text-ink-500 ">{report.date ?? '—'}</span>
   </div>
   <ExplainButton explanation={report.explanation} context={{ section: 'report', title: report.title, entity: report.title }} />
   </div>
-  <h3 className="font-semibold text-ink-900  mt-3">{report.title}</h3>
-  <p className="text-sm text-ink-700  mt-1.5">{report.summary}</p>
+<h3 className="font-semibold text-ink-900  mt-3">{report.title}</h3>
+  <SafeText text={report.summary} className="text-sm text-ink-700  mt-1.5" />
   <ul className="mt-4 space-y-3">
   {report.sections.map((s) => (
-  <li key={s.heading} className="border-l-2 border-ink-200  pl-3">
-  <p className="text-xs font-semibold text-ink-500  uppercase tracking-wide">{s.heading}</p>
-  <p className="text-sm text-ink-700  mt-0.5">{s.body}</p>
-  </li>
+    <li key={s.heading} className="border-l-2 border-ink-200  pl-3">
+    <p className="text-xs font-semibold text-ink-500  uppercase tracking-wide">{s.heading}</p>
+    <SafeText text={s.body} className="text-sm text-ink-700  mt-0.5" />
+    </li>
   ))}
   </ul>
   </Card>

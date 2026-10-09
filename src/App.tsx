@@ -5,6 +5,7 @@ import { tabs } from './components/tabs';
 import { Icon } from './components/icons';
 import { ServerStatus } from './components/ServerStatus';
 import { EndpointSettings, EndpointBadge } from './components/EndpointSettings';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import type { AnalysisData, BusinessProfile, OrchestratorResponse, TabKey } from './types';
 import { api } from './api/client';
 import type { SampleId } from './data';
@@ -148,6 +149,17 @@ export default function App() {
   </div>
 
   <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+  {submitError && (
+  <div role="alert" className="shrink-0 px-4 py-3 bg-rose-50 border-b border-rose-200 text-sm text-rose-800 flex items-start justify-between gap-3">
+  <div className="min-w-0">
+  <p className="font-medium">We could not load the analysis</p>
+  <p className="mt-0.5 text-xs text-rose-700 break-words">{submitError}</p>
+  </div>
+  <button onClick={() => setSubmitError(null)} className="shrink-0 text-rose-500 hover:text-rose-700" aria-label="Dismiss">
+  <Icon.X className="h-4 w-4" />
+  </button>
+  </div>
+  )}
   {missingData.length > 0 && (
   <div role="status" className="shrink-0 px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm text-amber-900">
   <p className="font-medium">Analysis is incomplete</p>
@@ -169,7 +181,9 @@ export default function App() {
   />
   )}
   <div className="flex-1 min-h-0 overflow-hidden">
+  <ErrorBoundary>
   <TabContent tab={tab} data={data} />
+  </ErrorBoundary>
   </div>
   </div>
 
